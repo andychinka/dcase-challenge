@@ -130,8 +130,15 @@ def main(argv):
 
 
 if __name__ == "__main__":
-    try:
-        sys.exit(main(sys.argv))
+    import traceback
 
-    except (ValueError, IOError) as e:
-        sys.exit(e)
+    retry_cnt = 0
+    while True:
+        try:
+            sys.exit(main(sys.argv))
+            break
+        except (ValueError, IOError) as e:
+            print(traceback.format_exc())
+            retry_cnt += 1
+            print("retry now: ", retry_cnt)
+            # sys.exit(e)
