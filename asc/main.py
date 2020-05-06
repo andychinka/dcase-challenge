@@ -19,6 +19,7 @@ def evaluate(model, dataloader):
 
     class_correct = list(0. for i in range(10))
     class_total = list(0. for i in range(10))
+    confusion_matrix = np.zeros((10, 10), dtype=int) # 2D, [actual_cls][predicted_cls]
 
     with torch.no_grad():
         for x, targets in dataloader:
@@ -29,11 +30,14 @@ def evaluate(model, dataloader):
             total_loss += loss.item()
 
             _, predicted = torch.max(outputs, 1)
+
             c = (predicted == targets).squeeze()
             for i in range(len(targets)):
                 label = targets[i]
                 class_correct[label] += c[i].item()
                 class_total[label] += 1
+
+                confusion_matrix[label.item()][predicted[label.item()].item()] += 1
 
             batch += 1
     acc = np.array(class_correct).sum() / np.array(class_total).sum()
@@ -43,7 +47,7 @@ def evaluate(model, dataloader):
             continue
         print('Accuracy of {} : {}%'.format(i, 100 * class_correct[i] / class_total[i]))
 
-    return (total_loss / batch), acc, class_correct, class_total
+    return (total_loss / batch), acc, class_correct, class_total, confusion_matrix
 
 
 def test_task1a_2018(model, db_path, feature_folder, model_save_fp):
@@ -51,13 +55,14 @@ def test_task1a_2018(model, db_path, feature_folder, model_save_fp):
     data_set_test = Task1aDataSet2018(db_path, config.class_map, feature_folder=feature_folder, mode="test")
     dataloader_test = DataLoader(data_set_test, batch_size=128, shuffle=False)
 
-    test_loss, test_acc, test_class_correct, test_class_total = evaluate(model, dataloader_test)
+    test_loss, test_acc, test_class_correct, test_class_total, confusion_matrix = evaluate(model, dataloader_test)
     print("test acc: {}".format(test_acc))
     torch.save({
         "test_loss": test_loss,
         "test_acc": test_acc,
         "class_correct": test_class_correct,
         "class_total": test_class_total,
+        "confusion_matrix": confusion_matrix,
     }, model_save_fp.format("test-result"))
 
 
@@ -68,7 +73,7 @@ def test_task1b_2018(model, db_path, feature_folder, model_save_fp):
     for d in devices:
         data_set_test = Task1bDataSet2018(db_path, config.class_map, feature_folder=feature_folder, mode="test", device=d)
         dataloader_test = DataLoader(data_set_test, batch_size=128, shuffle=False)
-        test_loss, test_acc, test_class_correct, test_class_total = evaluate(model, dataloader_test)
+        test_loss, test_acc, test_class_correct, test_class_total, confusion_matrix = evaluate(model, dataloader_test)
         print("test acc for device-{}: {}".format(device, test_acc))
 
         result[d] = {
@@ -76,15 +81,13 @@ def test_task1b_2018(model, db_path, feature_folder, model_save_fp):
             "test_acc": test_acc,
             "class_correct": test_class_correct,
             "class_total": test_class_total,
+            "confusion_matrix": confusion_matrix,
         }
 
     torch.save(result, model_save_fp.format("test-result"))
 
 
-def main(db_path:str, feature_folder: str, model_save_fp:str, data_set_cls, test_fn):
-
-    # Read the meta and prepare for different data set
-
+def train(db_path:str, feature_folder: str, model_save_fp:str, data_set_cls, test_fn):
 
     data_set = data_set_cls(db_path, config.class_map, feature_folder=feature_folder)
     data_set_eval = data_set_cls(db_path, config.class_map, feature_folder=feature_folder, mode="evaluate")
@@ -141,7 +144,7 @@ def main(db_path:str, feature_folder: str, model_save_fp:str, data_set_cls, test
         }, model_save_fp.format("cp"))
 
         # evaluation here
-        eval_loss, acc, class_correct, class_total = evaluate(model, dataloader_eval)
+        eval_loss, acc, class_correct, class_total, confusion_matrix = evaluate(model, dataloader_eval)
         print("eval loss: {}, acc: {}".format(eval_loss, acc))
 
         print("time used for {} ep: {}".format(current_ep, time.time() - ep_start_time))
@@ -187,10 +190,10 @@ if __name__ == "__main__":
 
     args = parser.parse_args()
 
-    # main(db_path=args.db_path, feature_folder=args.feature_folder, model_save_fp=args.model_save_fp,
+    # train(db_path=args.db_path, feature_folder=args.feature_folder, model_save_fp=args.model_save_fp,
     #      data_set_cls=Task1aDataSet2018, test_fn=test_task1a_2018)
 
-    main(db_path=args.db_path, feature_folder=args.feature_folder, model_save_fp=args.model_save_fp,
+    train(db_path=args.db_path, feature_folder=args.feature_folder, model_save_fp=args.model_save_fp,
          data_set_cls=Task1bDataSet2018, test_fn=test_task1b_2018)
 
 
