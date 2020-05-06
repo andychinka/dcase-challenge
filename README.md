@@ -10,7 +10,26 @@ TODO
 pip install TODO
 ```
 
+Download or clone this git repository.
+```
+git clone https://github.com/andychinka/dcase-challenge
+```
+
+Navigate to the downloaded folder.
+```
+cd dcase-challenge
+```
+
+Build and install using setup.py.
+```
+python setup.py install
+```
+
 ### Installing/Running the Code
+
+0. Download Data
+
+There are some downloader script under the folder "downloader" 
 
 1. Preprocess Data
 
