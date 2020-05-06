@@ -206,7 +206,7 @@ if __name__ == "__main__":
     if args.task in ["task1a-2018", "task1a-2019"]:
         data_set_cls = Task1aDataSet2018
         test_fn = test_task1a_2018
-    elif args.task == ["task1b-2018", "task1b-2019"]:
+    elif args.task in ["task1b-2018", "task1b-2019"]:
         data_set_cls = Task1bDataSet2018
         test_fn = test_task1b_2018
     else:
