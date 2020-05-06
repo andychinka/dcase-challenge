@@ -1,8 +1,5 @@
-import torch
 import torch.nn as nn
-from torch.autograd import Variable
-from torch import autograd
-import numpy as np
+
 
 class Baseline(nn.Module):
 

@@ -50,6 +50,7 @@ def evaluate(model, dataloader):
     return (total_loss / batch), acc, class_correct, class_total, confusion_matrix
 
 
+#TODO: move to another package
 def test_task1a_2018(model, db_path, feature_folder, model_save_fp):
 
     data_set_test = Task1aDataSet2018(db_path, config.class_map, feature_folder=feature_folder, mode="test")
@@ -66,6 +67,7 @@ def test_task1a_2018(model, db_path, feature_folder, model_save_fp):
     }, model_save_fp.format("test-result"))
 
 
+#TODO: move to another package
 def test_task1b_2018(model, db_path, feature_folder, model_save_fp):
     result = {}
     devices = ["a", "b", "c"]
@@ -87,7 +89,8 @@ def test_task1b_2018(model, db_path, feature_folder, model_save_fp):
     torch.save(result, model_save_fp.format("test-result"))
 
 
-def train(db_path:str, feature_folder: str, model_save_fp:str, data_set_cls, test_fn):
+def train(db_path:str, feature_folder: str, model_save_fp:str,
+          model_cls, data_set_cls, test_fn):
 
     data_set = data_set_cls(db_path, config.class_map, feature_folder=feature_folder)
     data_set_eval = data_set_cls(db_path, config.class_map, feature_folder=feature_folder, mode="evaluate")
@@ -103,7 +106,7 @@ def train(db_path:str, feature_folder: str, model_save_fp:str, data_set_cls, tes
     best_acc = 0
     not_improve_cnt = 0
 
-    model = Baseline().to(device)
+    model = model_cls().to(device)
     optimizer = torch.optim.Adam(model.parameters(), lr=0.001)
 
     dataloader = DataLoader(data_set, batch_size=batch_size, shuffle=True)
@@ -187,13 +190,29 @@ if __name__ == "__main__":
     parser.add_argument('-db_path', default="/Users/andycheung/Downloads/dcase/dataset/TUT-urban-acoustic-scenes-2018-mobile-development")
     parser.add_argument('-feature_folder', default="feature")
     parser.add_argument("-model_save_fp", default="./model-{}.pt")
-
+    parser.add_argument("-task", default="task1a-2018")
+    parser.add_argument("-model", default="baseline")
     args = parser.parse_args()
 
-    # train(db_path=args.db_path, feature_folder=args.feature_folder, model_save_fp=args.model_save_fp,
-    #      data_set_cls=Task1aDataSet2018, test_fn=test_task1a_2018)
+    data_set_cls = None
+    test_fn = None
+    model_cls = None
+
+    if args.model == "baseline":
+        model_cls = Baseline
+    else:
+        raise Exception("Unknown model: ", args.model)
+
+    if args.task in ["task1a-2018", "task1a-2019"]:
+        data_set_cls = Task1aDataSet2018
+        test_fn = test_task1a_2018
+    elif args.task == ["task1b-2018", "task1b-2019"]:
+        data_set_cls = Task1bDataSet2018
+        test_fn = test_task1b_2018
+    else:
+        raise Exception("Unknown task: ", args.task)
 
     train(db_path=args.db_path, feature_folder=args.feature_folder, model_save_fp=args.model_save_fp,
-         data_set_cls=Task1bDataSet2018, test_fn=test_task1b_2018)
+          model_cls = Baseline, data_set_cls=data_set_cls, test_fn=test_fn)
 
 
