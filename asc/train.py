@@ -76,7 +76,7 @@ def test_task1b_2018(model, db_path, feature_folder, model_save_fp):
         data_set_test = Task1bDataSet2018(db_path, config.class_map, feature_folder=feature_folder, mode="test", device=d)
         dataloader_test = DataLoader(data_set_test, batch_size=128, shuffle=False)
         test_loss, test_acc, test_class_correct, test_class_total, confusion_matrix = evaluate(model, dataloader_test)
-        print("test acc for device-{}: {}".format(device, test_acc))
+        print("test acc for device-{}: {}".format(d, test_acc))
 
         result[d] = {
             "test_loss": test_loss,
