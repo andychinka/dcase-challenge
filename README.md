@@ -27,17 +27,17 @@ python setup.py install
 
 ### Installing/Running the Code
 
-0. Download Data
+#### 0. Download Data
 
 There are some downloader script under the folder "downloader" 
 
-1. Preprocess Data
+#### 1. Preprocess Data
 
 ```bash
 python preprocess.py -db_path=<folder> -feature_folder=<folder>
 ```
 
-2. Build Model
+#### 2. Build Model
 
 ```
 python train.py -db_path=<folder> -feature_folder=<folder> -model_save_fp=<filepath> -task=<task name> -model=<model name>
@@ -47,7 +47,10 @@ Example: Run 2018 Task 1A with baseline model
 python train.py -db_path=<folder> - feature_folder=<folder> -task=task1a-2018 -model=baseline
 ```
 
-
+#### 3. Generate Test Result
+```bash
+python gen_result.py -model_fp_format=<the model result file format> -run_cnt=<number of model ran> -output_folder=<result will save to this folder> -task=<task name>
+```
 
 ## Authors/Contact
 
