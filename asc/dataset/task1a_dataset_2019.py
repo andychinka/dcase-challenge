@@ -3,7 +3,7 @@ import pandas as pd
 import pickle
 import numpy as np
 
-class Task1aDataSet2018(Dataset):
+class Task1aDataSet2019(Dataset):
 
     def __init__(self, db_path:str, class_map:dict, feature_folder:str, mode:str="train"):
         #mode: train | test | eval
@@ -11,15 +11,14 @@ class Task1aDataSet2018(Dataset):
         #read the txt to the data_list
         self.db_path = db_path
         self.class_map = class_map
-        df = pd.read_csv("{}/evaluation_setup/fold1_{}.txt".format(db_path, mode), sep="\t", header=None)
-        # self.X_filepaths = df[0].str.replace("audio", feature_folder, n=1).str.replace(".wav", ".p")
-        self.X_filepaths = df[0].str.replace("audio", feature_folder, n=1).str.replace(".wav", ".cpickle")
+        df = pd.read_csv("{}/evaluation_setup/fold1_{}.csv".format(db_path, mode), sep="\t")
+        self.X_filepaths = df["filename"].str.replace("audio", feature_folder, n=1).str.replace(".wav", ".p")
 
         #TODO: maybe refer to meta.csv
         if mode == "test":
-            self.y_classnames = df[0].str.split("/", expand=True)[1].str.split("-", n=1, expand=True)[0]
+            self.y_classnames = df["filename"].str.split("/", expand=True)[1].str.split("-", n=1, expand=True)[0]
         else:
-            self.y_classnames = df[1]
+            self.y_classnames = df["scene_label"]
 
 
         self.data_list = []
@@ -32,9 +31,9 @@ class Task1aDataSet2018(Dataset):
         path = self.X_filepaths[idx]
         f = open("{}/{}".format(self.db_path, path), 'rb')
         feature = pickle.load(f)
-        feature = np.expand_dims(feature["_data"][:, :-1], axis=0)
-        if not feature.shape == (1,40,500):
-            print("shape not correct! idx: ", idx, "path: ", path)
+        # feature = np.expand_dims(feature["_data"][:, :-1], axis=0)
+        # if not feature.shape == (1,40,500):
+        #     print("shape not correct! idx: ", idx, "path: ", path)
         # feature = feature["_data"][:, :-1]
         label = self.class_map[self.y_classnames[idx]]
 

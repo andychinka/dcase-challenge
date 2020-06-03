@@ -44,6 +44,10 @@ class LogMelPreProcess(PreProcessBase):
     def extract_feature(self, wave_fp: str):
         x, sr = librosa.load(wave_fp, sr=None, mono=True)
         # assert (x.shape == (441000,))
+        if x.shape[0] == 479999 or x.shape[0] == 440999:
+            x = np.append(x, 0)
+        elif x.shape[0] == 480001 or x.shape[0] == 441001:
+            x = x[:-1]
         assert (x.shape == (sr*10,))
         # 40ms winlen, half overlap
         y = librosa.feature.melspectrogram(x,
@@ -63,14 +67,14 @@ class LogMelPreProcess(PreProcessBase):
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
-    parser.add_argument('-db_path', default="/media/data/shared-data/dcase/TUT-urban-acoustic-scenes-2018-development")
+    parser.add_argument('-db_path', default="/media/data/shared-data/dcase/TAU-urban-acoustic-scenes-2019-development")
     parser.add_argument("-feature_folder", default="feature2")
 
     parser.add_argument("-n_fft", default=2048)
     parser.add_argument("-hop_length_sec", default=0.02)
     parser.add_argument("-win_length_sec", default=0.04)
     parser.add_argument("-n_mels", default=40)
-    parser.add_argument("-fmax", default=24000)
+    parser.add_argument("-fmax", default=24000) # task1A: 24000, task1B: 22050
 
     args = parser.parse_args()
 

@@ -127,10 +127,10 @@ if __name__ == "__main__":
     import argparse
 
     parser = argparse.ArgumentParser()
-    parser.add_argument('-model_fp_format', default="/media/data/master-proj/2018-1a-baseline-{}-test-result.pt")
+    parser.add_argument('-model_fp_format', default="/media/data/master-proj/2019-1a-baseline-{}-v2-test-result.pt")
     parser.add_argument('-run_cnt', default=10)
-    parser.add_argument("-output_folder", default="/media/data/master-proj/2018-1a-baseline-result")
-    parser.add_argument("-task", default="task1a-2018")
+    parser.add_argument("-output_folder", default="/media/data/master-proj/2019-1a-v2-baseline-result")
+    parser.add_argument("-task", default="task1a-2019")
 
     args = parser.parse_args()
 
