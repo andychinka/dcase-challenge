@@ -51,9 +51,9 @@ class Task1aDataSet2020(Dataset):
         if feature.shape[0] == 1:
             feature = np.squeeze(feature, axis=0) # for dim256, cnn9
 
-        feature = self.spec_aug(feature)
+        # feature = self.spec_aug(feature)
 
-        # feature = np.swapaxes(feature, 0, 1) # only for cnn
+        feature = np.swapaxes(feature, 0, 1) # only for cnn
         # feature = np.expand_dims(feature, axis=0) # for other model, need the first 1 dim
         label = self.class_map[self.y_classnames[idx]]
 

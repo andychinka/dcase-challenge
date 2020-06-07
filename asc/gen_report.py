@@ -5,6 +5,10 @@ import json
 import pandas as pd
 
 import matplotlib.pyplot as plt
+from googleapiclient.http import MediaFileUpload
+
+from pydrive2.auth import GoogleAuth
+from pydrive2.drive import GoogleDrive
 
 def cleanup_error_exp(result_folder, exp_state):
     if not exp_state["runner_data"]["_has_errored"]:
@@ -52,17 +56,24 @@ def gen_report(result_folder: str):
 
                 # trial info
                 logdir = cp["logdir"]
+                metric_analysis = cp["metric_analysis"]
+                if not metric_analysis:
+                    print("no metrix, skip it", cp["trial_id"], fp)
+                    continue
+
                 id = hashlib.md5(logdir.encode()).hexdigest()
                 network = None if "network" not in config else config["network"]
                 feature = config["feature_folder"]
 
                 # hyper params
-                lr = config["lr"]
-                batch_size = config["batch_size"]
-                mixup_alpha = config["mixup_alpha"]
-                mixup_concat_ori = config["mixup_concat_ori"]
+                # optimizer = None if "optimizer" not in config else config["optimizer"]
+                # weight_decay = None if "weight_decay" not in config else  config["weight_decay"]
+                # lr = config["lr"]
+                # batch_size = config["batch_size"]
+                # mixup_alpha = config["mixup_alpha"]
+                # mixup_concat_ori = config["mixup_concat_ori"]
 
-                metric_analysis = cp["metric_analysis"]
+
 
                 max_acc = metric_analysis["acc"]["max"]
                 num_ep = metric_analysis["training_iteration"]["max"]
@@ -77,18 +88,27 @@ def gen_report(result_folder: str):
                     "report/{}_{}_loss_acc.png".format(result_folder.split("/")[-1], id)
                 )
 
-                reports.append({
+                report = {
                     "id": id,
                     "network": network,
                     "feature": feature,
                     "num_ep": num_ep,
-                    "lr": lr,
-                    "batch_size": batch_size,
-                    "mixup_alpha": mixup_alpha,
-                    "mixup_concat_ori": mixup_concat_ori,
+                    # "optimizer": optimizer,
+                    # "weight_decay": weight_decay,
+                    # "lr": lr,
+                    # "batch_size": batch_size,
+                    # "mixup_alpha": mixup_alpha,
+                    # "mixup_concat_ori": mixup_concat_ori,
                     "max_acc": max_acc,
-                    "plot_path": "<img style='width: 400px' src='{}_{}_loss_acc.png'/>".format(result_folder_rel, id)
-                })
+                    "plot_path": "<img style='width: 400px' src='{}_{}_loss_acc.png'/>".format(result_folder_rel, id),
+                }
+
+                ignore_cols = ["feature_folder", "db_path", "model_save_fp", "model_cls", "model_args", "data_set_cls", "test_fn"]
+                for key in config:
+                    if key in ignore_cols:
+                        continue
+                    report[key] = config[key]
+                reports.append(report)
 
     with open('report/{}.json'.format(result_folder_rel), 'w') as fp:
         json.dump(reports, fp)
@@ -174,6 +194,68 @@ def plot_loss_acc(train_losses_list, eval_losses_list, acc_list, save_fp):
     axs[1].set_title("Acc")
 
     plt.savefig(save_fp)
+    plt.close()
+
+def sync_to_drive():
+    from googleapiclient.discovery import build
+    from google_auth_oauthlib.flow import InstalledAppFlow
+    from google.auth.transport.requests import Request
+    import pickle
+
+    SCOPES = ['https://www.googleapis.com/auth/drive.metadata.readonly']
+
+    creds = None
+    # The file token.pickle stores the user's access and refresh tokens, and is
+    # created automatically when the authorization flow completes for the first
+    # time.
+    if os.path.exists('token.pickle'):
+        with open('token.pickle', 'rb') as token:
+            creds = pickle.load(token)
+    # If there are no (valid) credentials available, let the user log in.
+    if not creds or not creds.valid:
+        if creds and creds.expired and creds.refresh_token:
+            creds.refresh(Request())
+        else:
+            flow = InstalledAppFlow.from_client_secrets_file(
+                'credentials.json', SCOPES)
+            creds = flow.run_local_server(port=0)
+        # Save the credentials for the next run
+        with open('token.pickle', 'wb') as token:
+            pickle.dump(creds, token)
+
+    drive_service = build('drive', 'v3', credentials=creds)
+
+    # Call the Drive v3 API
+    results = drive_service.files().list(
+        pageSize=10, fields="nextPageToken, files(id, name)").execute()
+    items = results.get('files', [])
+
+    if not items:
+        print('No files found.')
+    else:
+        print('Files:')
+        for item in items:
+            print(u'{0} ({1})'.format(item['name'], item['id']))
+
+    # file_metadata = {'name': 'photo.jpg'}
+    # media = MediaFileUpload('files/photo.jpg', mimetype='image/jpeg')
+    # file = drive_service.files().create(body=file_metadata,
+    #                                     media_body=media,
+    #                                     fields='id').execute()
+    # print('File ID: %s' % file.get('id'))
+
+
+    #ClientID: 198530790340-6rqdhaam7b0gbs8j36homnbuch9o04r8.apps.googleusercontent.com
+    #Client Secret: sj8mJQSHJpYDcfaLsGLk9FkI
+    pass
 
 if __name__ == "__main__":
+    # gauth = GoogleAuth()
+    # gauth.LocalWebserverAuth()
+    #
+    # drive = GoogleDrive(gauth)
+
+
+    # sync_to_drive()
+
     gen_report("../ray_results/2020_diff_net2")

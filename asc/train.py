@@ -26,7 +26,7 @@ from ray import tune
 from ray.tune.schedulers import ASHAScheduler
 
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-os.environ['CUDA_VISIBLE_DEVICES'] = '-1'
+# os.environ['CUDA_VISIBLE_DEVICES'] = '-1'
 # device = torch.device("cpu")
 
 def evaluate(model, dataloader):
@@ -155,7 +155,7 @@ class Trainable(tune.Trainable):
     def _setup(self, c):
         db_path = c["db_path"]
         feature_folder = c["feature_folder"]
-        self.model_save_fp = c["model_save_fp"]
+        # self.model_save_fp = c["model_save_fp"]
         model_cls = c["model_cls"]
         model_args = c["model_args"]
         data_set_cls = c["data_set_cls"]
@@ -164,6 +164,9 @@ class Trainable(tune.Trainable):
         self.lr = c["lr"]
         self.mixup_alpha = c["mixup_alpha"]
         self.mixup_concat_ori = c["mixup_concat_ori"]
+        weight_decay = c["weight_decay"]
+        optimizer = c["optimizer"]
+        momentum = c["momentum"]
 
         data_set = data_set_cls(db_path, config.class_map, feature_folder=feature_folder)
         data_set_eval = data_set_cls(db_path, config.class_map, feature_folder=feature_folder, mode="evaluate")
@@ -186,7 +189,35 @@ class Trainable(tune.Trainable):
         self.model = model_cls(**model_args).to(device)
         print(self.model)
         # summary(self.model, (40, 500))
-        self.optimizer = torch.optim.Adam(self.model.parameters(), lr=self.lr, amsgrad=True)
+        #weight -1 -> -6 (aggressive)
+        if optimizer == "Adam":
+            self.optimizer = torch.optim.Adam(
+                self.model.parameters(),
+                betas=(0.9, 0.999),
+                eps=1e-8,
+                weight_decay=weight_decay,
+                lr=self.lr,
+                amsgrad=True)
+        elif optimizer == "AdamW":
+            self.optimizer = torch.optim.AdamW(
+                self.model.parameters(),
+                lr=self.lr,
+                betas=(0.9, 0.999),
+                eps=1e-08,
+                weight_decay=weight_decay,
+                amsgrad=True
+            )
+        elif optimizer == "SGD":
+            self.optimizer = torch.optim.SGD(
+                self.model.parameters(),
+                lr=self.lr,
+                momentum=momentum,
+                dampening=0,
+                weight_decay=weight_decay,
+                nesterov=momentum>0
+            )
+        else:
+            raise Exception("Unkown optimizer: {}".format(optimizer))
 
         self.scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(self.optimizer, factor=0.5, patience=10)
 
@@ -208,7 +239,6 @@ class Trainable(tune.Trainable):
                                                                     self.mixup_alpha,
                                                                     device.type == "cuda",
                                                                     self.mixup_concat_ori)
-            continue
 
             inputs = torch.FloatTensor(inputs).to(device)
             outputs = self.model(inputs)
@@ -248,7 +278,7 @@ class Trainable(tune.Trainable):
         self.eval_losses.append(eval_loss)
         print("eval loss: {}, acc: {}".format(eval_loss, acc))
 
-        plot_loss(self.train_losses, self.eval_losses, self.current_ep, self.model_save_fp)
+        # plot_loss(self.train_losses, self.eval_losses, self.current_ep, self.model_save_fp)
 
         if acc > self.best_acc:
             self.not_improve_cnt = 0
@@ -467,9 +497,11 @@ def plot_loss(train_losses_list, eval_losses_list, ep, model_save_fp):
 
 class TrainStopper(ray.tune.Stopper):
 
-    def __init__(self, stop_thres:int = 10):
+    def __init__(self, stop_thres:int = 10, max_ep = 50):
         self.trial_best = {}
+        self.trial_ep_cnt = {}
         self.stop_thres = stop_thres
+        self.max_ep = max_ep
 
     def __call__(self, trial_id, result):
         print("calling stopper", trial_id)
@@ -480,7 +512,9 @@ class TrainStopper(ray.tune.Stopper):
                 "acc": 0,
                 "not_improved_cnt": 0
             }
+            self.trial_ep_cnt[trial_id] = 0
 
+        self.trial_ep_cnt[trial_id] += 1
         if self.trial_best[trial_id]["acc"] < result["acc"]:
             self.trial_best[trial_id] = {
                 "acc": result["acc"],
@@ -491,6 +525,10 @@ class TrainStopper(ray.tune.Stopper):
 
         if self.trial_best[trial_id]["not_improved_cnt"] >= self.stop_thres:
             print("not_improved for ", self.trial_best[trial_id]["not_improved_cnt"], ", stop now")
+            return True
+
+        if self.trial_ep_cnt[trial_id] >= self.max_ep:
+            print("trail # of ep > max_ep, stop now.")
             return True
 
         return False
@@ -509,6 +547,7 @@ if __name__ == "__main__":
     parser.add_argument("-model", default="xception")
     parser.add_argument("-batch_size", default=128)
     parser.add_argument("-lr", default=0.005)
+    parser.add_argument("-exp_fp", default="./exp/cnn_dim40_sgd.py")
     args = parser.parse_args()
 
     data_set_cls = None
@@ -883,10 +922,18 @@ if __name__ == "__main__":
             run=Trainable,
             config={
                 "network": tune.grid_search(["cnn9avg_amsgrad"]),
-                "lr": tune.grid_search([0.0001]),
+                "optimizer": tune.grid_search(["SGD"]),
+                "lr": tune.grid_search([0.1]),
+                # "weight_decay": tune.grid_search([0.1, 0.0001, 0.000001]),
+                # weight_decay == 0.1 is very bad
+                "weight_decay": tune.grid_search([0.0001]),
+                "momentum": tune.grid_search([0.5]),
+                # "momentum": tune.grid_search([0, 0.1, 0.5, 0.9]),
                 "batch_size": tune.grid_search([64]),
+                # "mixup_alpha": tune.grid_search([0, 1]),
                 "mixup_alpha": tune.grid_search([1]),
                 "mixup_concat_ori": tune.grid_search([False, True]),
+                # "mixup_concat_ori": tune.grid_search([False]),
                 "feature_folder": tune.grid_search(["mono40dim"]),
                 "db_path": "/home/hw1-a07/dcase/datasets/TAU-urban-acoustic-scenes-2020-mobile-development",
                 "model_save_fp": args.model_save_fp,
@@ -1023,36 +1070,43 @@ if __name__ == "__main__":
         ),
     }
 
-    t = Trainable({
-                "network": "cnn9avg_amsgrad",
-                "lr": 0.0001,
-                "batch_size": 128,
-                "mixup_alpha": 1,
-                "mixup_concat_ori": False,
-                "db_path": "/home/hw1-a07/dcase/datasets/TAU-urban-acoustic-scenes-2020-mobile-development",
-                "feature_folder": "mono40dim",
-                "model_save_fp": args.model_save_fp,
-                "model_cls": AlexNet,
-                "model_args": {
-                    "num_classes": 10,
-                    "in_channel": 1,
-                },
-                "data_set_cls": Task1aDataSet2020,
-                "test_fn": None,  # no use here
-            })
+    # t = Trainable({
+    #             "network": "cnn9avg_amsgrad",
+    #             "optimizer": "Adam",
+    #             "weight_decay": 0.1,
+    #             "lr": 0.0001,
+    #             "batch_size": 128,
+    #             "mixup_alpha": 1,
+    #             "mixup_concat_ori": False,
+    #             "db_path": "/home/hw1-a07/dcase/datasets/TAU-urban-acoustic-scenes-2020-mobile-development",
+    #             "feature_folder": "mono40dim",
+    #             "model_save_fp": args.model_save_fp,
+    #             "model_cls": cnn.Cnn_9layers_AvgPooling,
+    #             "model_args": {
+    #                 "classes_num": 10,
+    #                 "activation": 'logsoftmax',
+    #             },
+    #             "data_set_cls": Task1aDataSet2020,
+    #             "test_fn": None,  # no use here
+    #         })
+    #
+    #
+    # t._train()
 
+    import importlib.util
 
-    t._train()
+    spec = importlib.util.spec_from_file_location("exp_config", args.exp_fp)
+    exp_config = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(exp_config)
 
-    # ray.shutdown()
-    # # ray.init(local_mode=True, webui_host="172.21.150.153")
-    # ray.init(local_mode=True)
-    # analysis = tune.run(
-    #     exp["cnn_dim256_norm"],
-    #     verbose=2,
-    #     resources_per_trial={"gpu": 1},
-    #     # scheduler=ray.tune.schedulers.HyperBandScheduler(metric="mean_accuracy", mode="max")
-    # )
+    ray.shutdown()
+    ray.init(local_mode=True, webui_host="0.0.0.0")
+    analysis = tune.run(
+        exp_config.exp,
+        verbose=2,
+        resources_per_trial={"gpu": 1},
+        # scheduler=ray.tune.schedulers.HyperBandScheduler(metric="mean_accuracy", mode="max")
+    )
 
 
 
