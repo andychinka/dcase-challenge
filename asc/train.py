@@ -153,88 +153,20 @@ def test_task1b_2019(model, db_path, feature_folder, model_save_fp):
 class Trainable(tune.Trainable):
 
     def _setup(self, c):
-        db_path = c["db_path"]
-        feature_folder = c["feature_folder"]
-        # self.model_save_fp = c["model_save_fp"]
-        model_cls = c["model_cls"]
-        model_args = c["model_args"]
-        data_set_cls = c["data_set_cls"]
-        self.test_fn = c["test_fn"]
-        batch_size = c["batch_size"]
-        self.lr = c["lr"]
-        self.mixup_alpha = c["mixup_alpha"]
-        self.mixup_concat_ori = c["mixup_concat_ori"]
-        weight_decay = c["weight_decay"]
-        optimizer = c["optimizer"]
-        momentum = c["momentum"]
-
-        data_set = data_set_cls(db_path, config.class_map, feature_folder=feature_folder)
-        data_set_eval = data_set_cls(db_path, config.class_map, feature_folder=feature_folder, mode="evaluate")
-
-        max_ep = 100
-        self.losses = []
-        self.train_losses = []
-        self.eval_losses = []
-        self.log_interval = 10
-        self.early_stop_thres = 20
-        self.start_time = time.time()
-
-        self.best_acc = 0
-        self.previous_acc = 0
-        self.not_improve_cnt = 0
-
-        self.current_lr = self.lr
-        self.current_ep = 0
-
-        self.model = model_cls(**model_args).to(device)
-        print(self.model)
-        # summary(self.model, (40, 500))
-        #weight -1 -> -6 (aggressive)
-        if optimizer == "Adam":
-            self.optimizer = torch.optim.Adam(
-                self.model.parameters(),
-                betas=(0.9, 0.999),
-                eps=1e-8,
-                weight_decay=weight_decay,
-                lr=self.lr,
-                amsgrad=True)
-        elif optimizer == "AdamW":
-            self.optimizer = torch.optim.AdamW(
-                self.model.parameters(),
-                lr=self.lr,
-                betas=(0.9, 0.999),
-                eps=1e-08,
-                weight_decay=weight_decay,
-                amsgrad=True
-            )
-        elif optimizer == "SGD":
-            self.optimizer = torch.optim.SGD(
-                self.model.parameters(),
-                lr=self.lr,
-                momentum=momentum,
-                dampening=0,
-                weight_decay=weight_decay,
-                nesterov=momentum>0
-            )
-        else:
-            raise Exception("Unkown optimizer: {}".format(optimizer))
-
-        self.scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(self.optimizer, factor=0.5, patience=10)
-
-        self.dataloader = DataLoader(data_set, batch_size=batch_size, shuffle=True)
-        self.dataloader_eval = DataLoader(data_set_eval, batch_size=batch_size, shuffle=False)
-        self.criterion = nn.CrossEntropyLoss()
+        self.reset_config(c)
 
     def _train(self):  # This is called iteratively.
 
         self.model.train()
-        batch = 0
+        # batch = 0
         total_loss = 0
 
         for param_group in self.optimizer.param_groups:
             self.current_lr = param_group['lr']
 
-        for x, targets in self.dataloader:
+        for batch, (x, targets) in enumerate(self.dataloader):
+            self.optimizer.zero_grad()
+
             inputs, targets_a, targets_b, lam = data_aug.mixup_data(x, targets,
                                                                     self.mixup_alpha,
                                                                     device.type == "cuda",
@@ -250,18 +182,18 @@ class Trainable(tune.Trainable):
 
             self.losses.append(loss.item())
             total_loss += loss.item()
-            # print(loss.item())
-
-            self.optimizer.zero_grad()
             loss.backward()
-            self.optimizer.step()
+
+            if (batch + 1) % self.mini_batch_cnt == 0:
+                self.optimizer.step()
+                self.optimizer.zero_grad()
 
             if batch % self.log_interval == 0 and batch > 0:
                 avg_loss = total_loss / batch
                 print('| epoch {:3d} | {:5d} batches | loss {:5.2f} | lr {}'
                       .format(self.current_ep, batch, avg_loss, self.current_lr))
 
-            batch += 1
+            # batch += 1
 
         self.train_losses.append(total_loss / batch)
 
@@ -334,6 +266,94 @@ class Trainable(tune.Trainable):
                 "optimizer_state_dict": self.optimizer.state_dict(),
             }, best_model_path)
         return tmp_checkpoint_dir
+
+    def _restore(self, checkpoint):
+        print("______ restore from ", checkpoint)
+        cp = torch.load(checkpoint)
+        self.model = model_cls(**model_args).to(device)
+        self.model.load_state_dict(cp["model_state_dict"])
+        self.optimizer.load_state_dict(cp["optimizer_state_dict"])
+
+        self.train_losses = cp["train_losses"]
+        self.current_ep = cp["current_ep"]
+
+    def reset_config(self, c):
+        print("_______ reset_config")
+
+        db_path = c["db_path"]
+        feature_folder = c["feature_folder"]
+        # self.model_save_fp = c["model_save_fp"]
+        model_cls = c["model_cls"]
+        model_args = c["model_args"]
+        data_set_cls = c["data_set_cls"]
+        self.test_fn = c["test_fn"]
+        batch_size = int(c["batch_size"] / c["mini_batch_cnt"])
+        self.mini_batch_cnt = c["mini_batch_cnt"]
+        self.lr = c["lr"]
+        self.mixup_alpha = c["mixup_alpha"]
+        self.mixup_concat_ori = c["mixup_concat_ori"]
+        weight_decay = c["weight_decay"]
+        optimizer = c["optimizer"]
+        momentum = None if "momentum" not in c else c["momentum"]
+
+        data_set = data_set_cls(db_path, config.class_map, feature_folder=feature_folder)
+        data_set_eval = data_set_cls(db_path, config.class_map, feature_folder=feature_folder, mode="evaluate")
+
+        max_ep = 100
+        self.losses = []
+        self.train_losses = []
+        self.eval_losses = []
+        self.log_interval = 10
+        self.early_stop_thres = 20
+        self.start_time = time.time()
+
+        self.best_acc = 0
+        self.previous_acc = 0
+        self.not_improve_cnt = 0
+
+        self.current_lr = self.lr
+        self.current_ep = 0
+
+        self.model = model_cls(**model_args).to(device)
+        print(self.model)
+        # summary(self.model, (40, 500))
+        #weight -1 -> -6 (aggressive)
+        if optimizer == "Adam":
+            self.optimizer = torch.optim.Adam(
+                self.model.parameters(),
+                betas=(0.9, 0.999),
+                eps=1e-8,
+                weight_decay=weight_decay,
+                lr=self.lr,
+                amsgrad=True)
+        elif optimizer == "AdamW":
+            self.optimizer = torch.optim.AdamW(
+                self.model.parameters(),
+                lr=self.lr,
+                betas=(0.9, 0.999),
+                eps=1e-08,
+                weight_decay=weight_decay,
+                amsgrad=True
+            )
+        elif optimizer == "SGD":
+            self.optimizer = torch.optim.SGD(
+                self.model.parameters(),
+                lr=self.lr,
+                momentum=momentum,
+                dampening=0,
+                weight_decay=weight_decay,
+                nesterov=momentum>0
+            )
+        else:
+            raise Exception("Unkown optimizer: {}".format(optimizer))
+
+        self.scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(self.optimizer, factor=0.5, patience=10)
+
+        self.dataloader = DataLoader(data_set, batch_size=batch_size, shuffle=True)
+        self.dataloader_eval = DataLoader(data_set_eval, batch_size=batch_size, shuffle=False)
+        self.criterion = nn.CrossEntropyLoss()
+        return True
+
 
 def train(c):
 
@@ -497,7 +517,7 @@ def plot_loss(train_losses_list, eval_losses_list, ep, model_save_fp):
 
 class TrainStopper(ray.tune.Stopper):
 
-    def __init__(self, stop_thres:int = 10, max_ep = 50):
+    def __init__(self, stop_thres:int = 10, max_ep = 100):
         self.trial_best = {}
         self.trial_ep_cnt = {}
         self.stop_thres = stop_thres
@@ -1070,43 +1090,43 @@ if __name__ == "__main__":
         ),
     }
 
-    # t = Trainable({
-    #             "network": "cnn9avg_amsgrad",
-    #             "optimizer": "Adam",
-    #             "weight_decay": 0.1,
-    #             "lr": 0.0001,
-    #             "batch_size": 128,
-    #             "mixup_alpha": 1,
-    #             "mixup_concat_ori": False,
-    #             "db_path": "/home/hw1-a07/dcase/datasets/TAU-urban-acoustic-scenes-2020-mobile-development",
-    #             "feature_folder": "mono40dim",
-    #             "model_save_fp": args.model_save_fp,
-    #             "model_cls": cnn.Cnn_9layers_AvgPooling,
-    #             "model_args": {
-    #                 "classes_num": 10,
-    #                 "activation": 'logsoftmax',
-    #             },
-    #             "data_set_cls": Task1aDataSet2020,
-    #             "test_fn": None,  # no use here
-    #         })
+    t = Trainable({
+                "network": "cnn9avg_amsgrad",
+                "optimizer": "Adam",
+                "weight_decay": 0.1,
+                "lr": 0.0001,
+                "batch_size": 256,
+                "mini_batch_cnt": 4, # actually batch_size = 256/4 = 64
+                "mixup_alpha": 1,
+                "mixup_concat_ori": False,
+                "db_path": "/home/hw1-a07/dcase/datasets/TAU-urban-acoustic-scenes-2020-mobile-development",
+                "feature_folder": "mono40dim",
+                "model_cls": cnn.Cnn_9layers_AvgPooling,
+                "model_args": {
+                    "classes_num": 10,
+                    "activation": 'logsoftmax',
+                },
+                "data_set_cls": Task1aDataSet2020,
+                "test_fn": None,  # no use here
+            })
+
+
+    t._train()
+
+    # import importlib.util
     #
+    # spec = importlib.util.spec_from_file_location("exp_config", args.exp_fp)
+    # exp_config = importlib.util.module_from_spec(spec)
+    # spec.loader.exec_module(exp_config)
     #
-    # t._train()
-
-    import importlib.util
-
-    spec = importlib.util.spec_from_file_location("exp_config", args.exp_fp)
-    exp_config = importlib.util.module_from_spec(spec)
-    spec.loader.exec_module(exp_config)
-
-    ray.shutdown()
-    ray.init(local_mode=True, webui_host="0.0.0.0")
-    analysis = tune.run(
-        exp_config.exp,
-        verbose=2,
-        resources_per_trial={"gpu": 1},
-        # scheduler=ray.tune.schedulers.HyperBandScheduler(metric="mean_accuracy", mode="max")
-    )
+    # ray.shutdown()
+    # ray.init(local_mode=True, webui_host="0.0.0.0")
+    # analysis = tune.run(
+    #     exp_config.exp,
+    #     verbose=2,
+    #     resources_per_trial={"gpu": 1},
+    #     # scheduler=ray.tune.schedulers.HyperBandScheduler(metric="mean_accuracy", mode="max")
+    # )
 
 
 

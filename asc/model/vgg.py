@@ -68,6 +68,59 @@ class VGG(nn.Module):
     def cal_loss(self, output, targets):
         return self.criterion(output, targets)
 
+class VGGModified(nn.Module):
+
+    def __init__(self, features, num_classes=1000, init_weights=True):
+        super(VGG, self).__init__()
+        self.features = features
+        self.avgpool = nn.AdaptiveAvgPool2d((7, 7))
+        self.classifier = nn.Sequential(
+            nn.Linear(512 * 7 * 7, 4096),
+            nn.ReLU(True),
+            nn.Dropout(),
+            nn.Linear(4096, 4096),
+            nn.ReLU(True),
+            nn.Dropout(),
+            nn.Linear(4096, num_classes),
+        )
+        if init_weights:
+            self._initialize_weights()
+
+        self.criterion = nn.CrossEntropyLoss()
+
+    def forward(self, x):
+        x = self.features(x)
+        x = self.avgpool(x)
+
+        # x = torch.flatten(x, 1)
+
+        '''(batch_size, feature_maps, freq_bins, time_steps)'''
+        x = torch.mean(x, dim=2)  # (batch_size, feature_maps, time_stpes)
+        (x, _) = torch.max(x, dim=2)  # (batch_size, feature_maps)
+
+        x = self.classifier(x)
+        return x
+
+    def _initialize_weights(self):
+        for m in self.modules():
+            if isinstance(m, nn.Conv2d):
+                nn.init.kaiming_normal_(m.weight, mode='fan_out', nonlinearity='relu')
+                if m.bias is not None:
+                    nn.init.constant_(m.bias, 0)
+            elif isinstance(m, nn.BatchNorm2d):
+                nn.init.constant_(m.weight, 1)
+                nn.init.constant_(m.bias, 0)
+            elif isinstance(m, nn.Linear):
+                nn.init.normal_(m.weight, 0, 0.01)
+                nn.init.constant_(m.bias, 0)
+
+    def get_loss(self, x, targets):
+        output = self.forward(x)
+        return self.criterion(output, targets)
+
+    def cal_loss(self, output, targets):
+        return self.criterion(output, targets)
+
 
 def make_layers(cfg, in_channels = 1, batch_norm=False):
     layers = []
@@ -105,6 +158,14 @@ def _vgg(arch, cfg, batch_norm, pretrained, progress, in_channels=1, **kwargs):
     return model
 
 
+def _vgg_m(arch, cfg, batch_norm, pretrained, progress, in_channels=1, **kwargs):
+    if pretrained:
+        raise Exception("not support pretrained")
+
+    model = VGGModified(make_layers(cfgs[cfg], in_channels=in_channels, batch_norm=batch_norm), **kwargs)
+    return model
+
+
 def vgg11(pretrained=False, progress=True, **kwargs):
     r"""VGG 11-layer model (configuration "A") from
     `"Very Deep Convolutional Networks For Large-Scale Image Recognition" <https://arxiv.org/pdf/1409.1556.pdf>`_
@@ -123,6 +184,15 @@ def vgg11_bn(pretrained=False, progress=True, **kwargs):
         progress (bool): If True, displays a progress bar of the download to stderr
     """
     return _vgg('vgg11_bn', 'A', True, pretrained, progress, **kwargs)
+
+def vgg11_bn_m(pretrained=False, progress=True, **kwargs):
+    r"""VGG 11-layer model (configuration "A") with batch normalization
+    `"Very Deep Convolutional Networks For Large-Scale Image Recognition" <https://arxiv.org/pdf/1409.1556.pdf>`_
+    Args:
+        pretrained (bool): If True, returns a model pre-trained on ImageNet
+        progress (bool): If True, displays a progress bar of the download to stderr
+    """
+    return _vgg_m('vgg11_bn', 'A', True, pretrained, progress, **kwargs)
 
 
 def vgg13(pretrained=False, progress=True, **kwargs):

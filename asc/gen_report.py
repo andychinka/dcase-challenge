@@ -115,13 +115,14 @@ def gen_report(result_folder: str):
 
     df = pd.DataFrame.from_dict(reports)
     df.to_csv('report/{}.csv'.format(result_folder_rel))
-    df.to_html('report/{}.html'.format(result_folder_rel), escape=False)
+    df.to_html('report/{}.html'.format(result_folder_rel), escape=False, bold_rows=False, table_id=None)
 
     with open('report/{}.html'.format(result_folder_rel), "a") as file_object:
-        file_object.write("""
+        file_object.write("""        
         <script src="https://ajax.googleapis.com/ajax/libs/jquery/3.5.1/jquery.min.js"></script>
         <link rel="stylesheet" type="text/css" href="https://cdn.datatables.net/1.10.21/css/jquery.dataTables.css">
         <script type="text/javascript" charset="utf8" src="https://cdn.datatables.net/1.10.21/js/jquery.dataTables.js"></script>
+        
         <script>
           $(document).ready( function () {
             var table = $('table').DataTable({
@@ -169,6 +170,35 @@ def gen_report(result_folder: str):
           }
         </style>
         """)
+
+    df.to_html('report/{}-pivot.html'.format(result_folder_rel), escape=False, bold_rows=False, table_id="raw-table")
+    with open('report/{}-pivot.html'.format(result_folder_rel), "a") as file_object:
+        file_object.write("""
+        <div id="pivot-table"></div>
+        
+        <script src="https://ajax.googleapis.com/ajax/libs/jquery/3.5.1/jquery.min.js"></script>
+        <script src="https://cdnjs.cloudflare.com/ajax/libs/pivottable/2.23.0/pivot.min.js"></script>
+        <link rel="stylesheet" type="text/css" href="https://cdnjs.cloudflare.com/ajax/libs/pivottable/2.23.0/pivot.min.css">
+        <script src="https://code.jquery.com/ui/1.12.0/jquery-ui.min.js"></script>
+        
+        <style>
+            #raw-table{
+                display: none;
+            }
+        </style>
+        <script>
+            $(function(){
+                $("#pivot-table").pivotUI($("#raw-table"),{
+                    rows: ["network", "feature"],
+                    cols: ["optimizer", "weight_decay"],
+                    vals: ["max_acc"],
+                    aggregatorName: "Median",
+                    rendererName: "Table Barchart"
+                });
+            });
+        </script>
+        """)
+
     print(reports)
 
 
@@ -196,66 +226,6 @@ def plot_loss_acc(train_losses_list, eval_losses_list, acc_list, save_fp):
     plt.savefig(save_fp)
     plt.close()
 
-def sync_to_drive():
-    from googleapiclient.discovery import build
-    from google_auth_oauthlib.flow import InstalledAppFlow
-    from google.auth.transport.requests import Request
-    import pickle
-
-    SCOPES = ['https://www.googleapis.com/auth/drive.metadata.readonly']
-
-    creds = None
-    # The file token.pickle stores the user's access and refresh tokens, and is
-    # created automatically when the authorization flow completes for the first
-    # time.
-    if os.path.exists('token.pickle'):
-        with open('token.pickle', 'rb') as token:
-            creds = pickle.load(token)
-    # If there are no (valid) credentials available, let the user log in.
-    if not creds or not creds.valid:
-        if creds and creds.expired and creds.refresh_token:
-            creds.refresh(Request())
-        else:
-            flow = InstalledAppFlow.from_client_secrets_file(
-                'credentials.json', SCOPES)
-            creds = flow.run_local_server(port=0)
-        # Save the credentials for the next run
-        with open('token.pickle', 'wb') as token:
-            pickle.dump(creds, token)
-
-    drive_service = build('drive', 'v3', credentials=creds)
-
-    # Call the Drive v3 API
-    results = drive_service.files().list(
-        pageSize=10, fields="nextPageToken, files(id, name)").execute()
-    items = results.get('files', [])
-
-    if not items:
-        print('No files found.')
-    else:
-        print('Files:')
-        for item in items:
-            print(u'{0} ({1})'.format(item['name'], item['id']))
-
-    # file_metadata = {'name': 'photo.jpg'}
-    # media = MediaFileUpload('files/photo.jpg', mimetype='image/jpeg')
-    # file = drive_service.files().create(body=file_metadata,
-    #                                     media_body=media,
-    #                                     fields='id').execute()
-    # print('File ID: %s' % file.get('id'))
-
-
-    #ClientID: 198530790340-6rqdhaam7b0gbs8j36homnbuch9o04r8.apps.googleusercontent.com
-    #Client Secret: sj8mJQSHJpYDcfaLsGLk9FkI
-    pass
-
 if __name__ == "__main__":
-    # gauth = GoogleAuth()
-    # gauth.LocalWebserverAuth()
-    #
-    # drive = GoogleDrive(gauth)
-
-
-    # sync_to_drive()
 
     gen_report("../ray_results/2020_diff_net2")
