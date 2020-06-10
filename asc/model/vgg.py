@@ -75,7 +75,7 @@ class VGGModified(nn.Module):
         self.features = features
         self.avgpool = nn.AdaptiveAvgPool2d((7, 7))
         self.classifier = nn.Sequential(
-            nn.Linear(512 * 7 * 7, 4096),
+            nn.Linear(512, 4096),
             nn.ReLU(True),
             nn.Dropout(),
             nn.Linear(4096, 4096),
@@ -89,8 +89,9 @@ class VGGModified(nn.Module):
         self.criterion = nn.CrossEntropyLoss()
 
     def forward(self, x):
-        x = self.features(x)
-        x = self.avgpool(x)
+        # (batch_size, 1, dim, time)
+        x = self.features(x) #(batch_size, 512, 8, 15)
+        x = self.avgpool(x) #(batch_size, 512, 7, 7)
 
         # x = torch.flatten(x, 1)
 
