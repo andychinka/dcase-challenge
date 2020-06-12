@@ -6,27 +6,29 @@ from asc.train import TrainStopper
 
 from asc.model import cnn
 from asc.model import vgg
+from asc.model.alexnet import AlexNet
 from asc.dataset.task1a_dataset_2020 import Task1aDataSet2020
 
 exp = ray.tune.Experiment(
             run=Trainable,
             config={
-                "network": tune.grid_search(["vgg11_bn"]),
+                "network": tune.grid_search(["cnn9avg_amsgrad"]),
                 "optimizer": tune.grid_search(["AdamW"]),
-                "lr": tune.grid_search([0.0001]),
+                "lr": tune.grid_search([0.0001, 0.001]),
                 # weight_decay == 0.1 is very bad
-                "weight_decay": tune.grid_search([0.001]),
+                "weight_decay": tune.grid_search([0, 0.001]),
                 "momentum": None,
                 # "momentum": tune.grid_search([0, 0.1, 0.5, 0.9]),
                 "batch_size": tune.grid_search([256]),
                 "mini_batch_cnt": 16, # actually batch_size = 256/16 = 16
-                "mixup_alpha": tune.grid_search([1]),
+                "mixup_alpha": tune.grid_search([0, 1]),
                 "mixup_concat_ori": tune.grid_search([True]),
                 "feature_folder": tune.grid_search(["mono256dim/norm"]),
                 "db_path": "/home/hw1-a07/dcase/datasets/TAU-urban-acoustic-scenes-2020-mobile-development",
-                "model_cls": vgg.vgg11_bn_m,
+                "model_cls": cnn.Cnn_9layers_AvgPooling,
                 "model_args": {
-                    "num_classes": 10,
+                    "classes_num": 10,
+                    "activation": 'logsoftmax',
                 },
                 "data_set_cls": Task1aDataSet2020,
                 "test_fn": None,  # no use here
@@ -46,13 +48,12 @@ if __name__ == "__main__":
     import argparse
 
     parser = argparse.ArgumentParser()
-    parser.add_argument('-test', action='store_true')  # default = false
+    parser.add_argument('-test', action='store_false')  # default = false
     args = parser.parse_args()
 
     if args.test:
         print("====== Test Run =======")
         from asc import exp_utils
-
         c = exp_utils.exp_to_config(exp)
         t = Trainable(c)
         t._train()

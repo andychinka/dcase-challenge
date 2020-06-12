@@ -43,6 +43,21 @@ exp = ray.tune.Experiment(
         )
 
 if __name__ == "__main__":
+
+    import argparse
+
+    parser = argparse.ArgumentParser()
+    parser.add_argument('-test', action='store_true')  # default = false
+    args = parser.parse_args()
+
+    if args.test:
+        print("====== Test Run =======")
+        from asc import exp_utils
+        c = exp_utils.exp_to_config(exp)
+        t = Trainable(c)
+        t._train()
+        exit()
+
     ray.shutdown()
     ray.init(local_mode=True, webui_host="0.0.0.0")
 

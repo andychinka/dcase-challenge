@@ -152,7 +152,7 @@ class ConvBlock(nn.Module):
 
 class Cnn_9layers_AvgPooling(nn.Module):
 
-    def __init__(self, classes_num, activation):
+    def __init__(self, classes_num=10, activation="logsoftmax"):
         super(Cnn_9layers_AvgPooling, self).__init__()
 
         self.activation = activation
@@ -172,10 +172,14 @@ class Cnn_9layers_AvgPooling(nn.Module):
         init_layer(self.fc)
 
     def forward(self, input):
-        '''
-        Input: (batch_size, times_steps, freq_bins)'''
+        #Original code
+        # '''Input: (batch_size, times_steps, freq_bins)'''
+        #
+        # x = input[:, None, :, :]
+        # '''(batch_size, 1, times_steps, freq_bins)'''
 
-        x = input[:, None, :, :]
+        '''Input: (batch_size, 1, freq_bins, times_steps)'''
+        x = input.permute(0, 1, 3, 2)
         '''(batch_size, 1, times_steps, freq_bins)'''
 
         x = self.conv_block1(x, pool_size=(2, 2), pool_type='avg')

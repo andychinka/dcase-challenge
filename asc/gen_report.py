@@ -5,10 +5,6 @@ import json
 import pandas as pd
 
 import matplotlib.pyplot as plt
-from googleapiclient.http import MediaFileUpload
-
-from pydrive2.auth import GoogleAuth
-from pydrive2.drive import GoogleDrive
 
 def cleanup_error_exp(result_folder, exp_state):
     if not exp_state["runner_data"]["_has_errored"]:
@@ -29,7 +25,7 @@ def cleanup_error_exp(result_folder, exp_state):
     exp_fp_abs = exp_state["runner_data"]["checkpoint_file"]
     exp_fp = exp_fp_abs.split("/")[-1]
     print("remove exp file", exp_fp)
-    os.rename(exp_fp_abs, "{}/_trash/{}".format(result_folder, exp_fp))
+    os.rename("{}/{}".format(result_folder, exp_fp), "{}/_trash/{}".format(result_folder, exp_fp))
 
     return True
 

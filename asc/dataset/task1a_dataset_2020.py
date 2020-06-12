@@ -48,13 +48,16 @@ class Task1aDataSet2020(Dataset):
         path = self.X_filepaths[idx]
         f = open("{}/{}".format(self.db_path, path), 'rb')
         feature = np.load(f)
+
+        #### no need do swap and squeeze for cnn, code chnaged to accept (1, dim, time)
         # if feature.shape[0] == 1:
         #     feature = np.squeeze(feature, axis=0) # for dim256, cnn9
+        # feature = np.swapaxes(feature, 0, 1) # only for cnn
 
         # feature = self.spec_aug(feature)
 
-        # feature = np.swapaxes(feature, 0, 1) # only for cnn
-        # feature = np.expand_dims(feature, axis=0) # for other model, need the first 1 dim
+        if len(list(feature.shape)) == 2:
+            feature = np.expand_dims(feature, axis=0) # for other model, need the first 1 dim
         label = self.class_map[self.y_classnames[idx]]
 
         return feature, label
