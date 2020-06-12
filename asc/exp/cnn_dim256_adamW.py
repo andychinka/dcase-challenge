@@ -48,7 +48,7 @@ if __name__ == "__main__":
     import argparse
 
     parser = argparse.ArgumentParser()
-    parser.add_argument('-test', action='store_false')  # default = false
+    parser.add_argument('-test', action='store_true')  # default = false
     args = parser.parse_args()
 
     if args.test:
