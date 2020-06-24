@@ -7,28 +7,29 @@ from asc.train import TrainStopper
 from asc.model import cnn
 from asc.model import vgg
 from asc.model.alexnet import AlexNet
+from asc.model.xception import Xception
 from asc.dataset.task1a_dataset_2020 import Task1aDataSet2020
 
 exp = ray.tune.Experiment(
             run=Trainable,
             config={
-                "network": tune.grid_search(["cnn9avg_amsgrad"]),
-                "optimizer": tune.grid_search(["AdamW"]),
+                "network": tune.grid_search(["xception"]),
+                "optimizer": tune.grid_search(["Adam"]),
                 "lr": tune.grid_search([0.0001]),
                 # weight_decay == 0.1 is very bad
                 "weight_decay": tune.grid_search([0]),
                 "momentum": None,
                 # "momentum": tune.grid_search([0, 0.1, 0.5, 0.9]),
-                "batch_size": tune.grid_search([16]),
-                "mini_batch_cnt": 1, # actually batch_size = 256/16 = 16
-                "mixup_alpha": tune.grid_search([0]),
-                "mixup_concat_ori": tune.grid_search([False]),
+                "batch_size": tune.grid_search([256]),
+                "mini_batch_cnt": 16, # actually batch_size = 256/16 = 16
+
+                "mixup_alpha": tune.grid_search([1]),
+                "mixup_concat_ori": tune.grid_search([True]),
                 "feature_folder": tune.grid_search(["mono256dim/norm"]),
                 "db_path": "/home/hw1-a07/dcase/datasets/TAU-urban-acoustic-scenes-2020-mobile-development",
-                "model_cls": cnn.Cnn_9layers_AvgPooling,
+                "model_cls": Xception,
                 "model_args": {
-                    "classes_num": 10,
-                    "activation": 'logsoftmax',
+                    "in_channel": 1,
                 },
                 "data_set_cls": Task1aDataSet2020,
                 "test_fn": None,  # no use here
@@ -56,7 +57,8 @@ if __name__ == "__main__":
         from asc import exp_utils
         c = exp_utils.exp_to_config(exp)
         t = Trainable(c)
-        t._train()
+        for e in range(20):
+            t._train()
         exit()
 
     ray.shutdown()

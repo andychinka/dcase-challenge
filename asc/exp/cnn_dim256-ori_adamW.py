@@ -19,11 +19,11 @@ exp = ray.tune.Experiment(
                 "weight_decay": tune.grid_search([0]),
                 "momentum": None,
                 # "momentum": tune.grid_search([0, 0.1, 0.5, 0.9]),
-                "batch_size": tune.grid_search([16]),
-                "mini_batch_cnt": 1, # actually batch_size = 256/16 = 16
+                "batch_size": tune.grid_search([256]),
+                "mini_batch_cnt": 16, # actually batch_size = 256/16 = 16
                 "mixup_alpha": tune.grid_search([0]),
                 "mixup_concat_ori": tune.grid_search([False]),
-                "feature_folder": tune.grid_search(["mono256dim/norm"]),
+                "feature_folder": tune.grid_search(["mono256dim/org"]),
                 "db_path": "/home/hw1-a07/dcase/datasets/TAU-urban-acoustic-scenes-2020-mobile-development",
                 "model_cls": cnn.Cnn_9layers_AvgPooling,
                 "model_args": {

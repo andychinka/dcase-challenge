@@ -15,6 +15,8 @@ def cleanup_error_exp(result_folder, exp_state):
         os.mkdir(trash_fp)
 
     for cp in exp_state["checkpoints"]:
+        if cp["logdir"] is None:
+           continue
         trial_folder = cp["logdir"].split("/")[-1]
         trial_folder_abs = "{}/{}".format(result_folder, trial_folder)
         if os.path.exists(trial_folder_abs):
@@ -88,7 +90,7 @@ def gen_report(result_folder: str):
                     "id": id,
                     "network": network,
                     "feature": feature,
-                    "num_ep": num_ep,
+                    "num_ep": "<label title='" + logdir + "'>" + str(num_ep) + "</label>",
                     # "optimizer": optimizer,
                     # "weight_decay": weight_decay,
                     # "lr": lr,

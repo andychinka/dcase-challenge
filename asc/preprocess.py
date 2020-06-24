@@ -4,30 +4,7 @@ import librosa
 import numpy as np
 import os
 import argparse
-
-class PreProcessBase(object):
-
-    def __init__(self, db_path: str, feature_folder: str = "feature"):
-        self.db_path = db_path
-        self.feature_folder = feature_folder
-
-        if not os.path.exists("{}/{}".format(db_path, feature_folder)):
-            os.mkdir("{}/{}".format(db_path, feature_folder))
-
-    def extract_feature(self, wave_fp: str):
-        raise Exception("Please implement this function")
-
-    def process(self):
-
-        for wav_fp in os.listdir("{}/audio".format(self.db_path)):
-            if not wav_fp.endswith(".wav"):
-                continue
-            f = self.extract_feature("{}/audio/{}".format(self.db_path, wav_fp))
-
-            f_fp = wav_fp.replace(".wav", ".p", 1)
-
-            with open("{}/{}/{}".format(self.db_path, self.feature_folder, f_fp), 'wb') as f_file:
-                pickle.dump(f, f_file)
+from asc.preprocess.base import PreProcessBase
 
 
 class LogMelPreProcess(PreProcessBase):

@@ -38,13 +38,13 @@ def evaluate(model, dataloader):
     class_correct = list(0. for i in range(10))
     class_total = list(0. for i in range(10))
     confusion_matrix = np.zeros((10, 10), dtype=int) # 2D, [actual_cls][predicted_cls]
-
+    criterion = nn.CrossEntropyLoss()
     with torch.no_grad():
         for x, targets in dataloader:
             x = torch.FloatTensor(x).to(device)
             targets = torch.LongTensor(targets).to(device)
             outputs = model(x)
-            loss = model.cal_loss(outputs, targets)
+            loss = criterion(outputs, targets)
             total_loss += loss.item()
 
             outputs = F.log_softmax(outputs, dim=-1)
@@ -153,7 +153,89 @@ def test_task1b_2019(model, db_path, feature_folder, model_save_fp):
 class Trainable(tune.Trainable):
 
     def _setup(self, c):
-        self.reset_config(c)
+        db_path = c["db_path"]
+        feature_folder = c["feature_folder"]
+        # self.model_save_fp = c["model_save_fp"]
+        model_cls = c["model_cls"]
+        model_args = c["model_args"]
+        data_set_cls = c["data_set_cls"]
+        self.test_fn = c["test_fn"]
+        batch_size = int(c["batch_size"] / c["mini_batch_cnt"])
+        self.mini_batch_cnt = c["mini_batch_cnt"]
+        self.lr = c["lr"]
+        self.mixup_alpha = c["mixup_alpha"]
+        self.mixup_concat_ori = c["mixup_concat_ori"]
+        weight_decay = c["weight_decay"]
+        optimizer = c["optimizer"]
+        momentum = None if "momentum" not in c else c["momentum"]
+        resume_model = None if "resume_model" not in c else c["resume_model"]
+
+        data_set = data_set_cls(db_path, config.class_map, feature_folder=feature_folder)
+        data_set_eval = data_set_cls(db_path, config.class_map, feature_folder=feature_folder, mode="evaluate")
+
+        self.losses = []
+        self.train_losses = []
+        self.eval_losses = []
+        self.log_interval = 10
+        self.early_stop_thres = 20
+        self.start_time = time.time()
+
+        self.best_acc = 0
+        self.previous_acc = 0
+        self.not_improve_cnt = 0
+
+        self.current_lr = self.lr
+        self.current_ep = 0
+
+        self.model = model_cls(**model_args).to(device)
+
+        print(self.model)
+        # summary(self.model, (40, 500))
+        # weight -1 -> -6 (aggressive)
+        if optimizer == "Adam":
+            self.optimizer = torch.optim.Adam(
+                self.model.parameters(),
+                betas=(0.9, 0.999),
+                eps=1e-8,
+                weight_decay=weight_decay,
+                lr=self.lr,
+                amsgrad=True)
+        elif optimizer == "AdamW":
+            self.optimizer = torch.optim.AdamW(
+                self.model.parameters(),
+                lr=self.lr,
+                betas=(0.9, 0.999),
+                eps=1e-08,
+                weight_decay=weight_decay,
+                amsgrad=True
+            )
+        elif optimizer == "SGD":
+            self.optimizer = torch.optim.SGD(
+                self.model.parameters(),
+                lr=self.lr,
+                momentum=momentum,
+                dampening=0,
+                weight_decay=weight_decay,
+                nesterov=momentum > 0
+            )
+        else:
+            raise Exception("Unkown optimizer: {}".format(optimizer))
+
+        # reload model
+        if resume_model is not None:
+            print("==== resume model from {}".format(resume_model))
+            cp = torch.load(resume_model)
+            self.model.load_state_dict(cp["model_state_dict"])
+            self.optimizer.load_state_dict(cp["optimizer_state_dict"])
+            self.best_acc = cp["acc"]
+            self.previous_acc = cp["acc"]
+            self.current_ep = cp["ep"]
+
+        self.scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(self.optimizer, factor=0.5, patience=10)
+
+        self.dataloader = DataLoader(data_set, batch_size=batch_size, shuffle=True)
+        self.dataloader_eval = DataLoader(data_set_eval, batch_size=batch_size, shuffle=False)
+        self.criterion = nn.CrossEntropyLoss()
 
     def _train(self):  # This is called iteratively.
 
@@ -280,78 +362,7 @@ class Trainable(tune.Trainable):
     def reset_config(self, c):
         print("_______ reset_config")
 
-        db_path = c["db_path"]
-        feature_folder = c["feature_folder"]
-        # self.model_save_fp = c["model_save_fp"]
-        model_cls = c["model_cls"]
-        model_args = c["model_args"]
-        data_set_cls = c["data_set_cls"]
-        self.test_fn = c["test_fn"]
-        batch_size = int(c["batch_size"] / c["mini_batch_cnt"])
-        self.mini_batch_cnt = c["mini_batch_cnt"]
-        self.lr = c["lr"]
-        self.mixup_alpha = c["mixup_alpha"]
-        self.mixup_concat_ori = c["mixup_concat_ori"]
-        weight_decay = c["weight_decay"]
-        optimizer = c["optimizer"]
-        momentum = None if "momentum" not in c else c["momentum"]
 
-        data_set = data_set_cls(db_path, config.class_map, feature_folder=feature_folder)
-        data_set_eval = data_set_cls(db_path, config.class_map, feature_folder=feature_folder, mode="evaluate")
-
-        max_ep = 100
-        self.losses = []
-        self.train_losses = []
-        self.eval_losses = []
-        self.log_interval = 10
-        self.early_stop_thres = 20
-        self.start_time = time.time()
-
-        self.best_acc = 0
-        self.previous_acc = 0
-        self.not_improve_cnt = 0
-
-        self.current_lr = self.lr
-        self.current_ep = 0
-
-        self.model = model_cls(**model_args).to(device)
-        print(self.model)
-        # summary(self.model, (40, 500))
-        #weight -1 -> -6 (aggressive)
-        if optimizer == "Adam":
-            self.optimizer = torch.optim.Adam(
-                self.model.parameters(),
-                betas=(0.9, 0.999),
-                eps=1e-8,
-                weight_decay=weight_decay,
-                lr=self.lr,
-                amsgrad=True)
-        elif optimizer == "AdamW":
-            self.optimizer = torch.optim.AdamW(
-                self.model.parameters(),
-                lr=self.lr,
-                betas=(0.9, 0.999),
-                eps=1e-08,
-                weight_decay=weight_decay,
-                amsgrad=True
-            )
-        elif optimizer == "SGD":
-            self.optimizer = torch.optim.SGD(
-                self.model.parameters(),
-                lr=self.lr,
-                momentum=momentum,
-                dampening=0,
-                weight_decay=weight_decay,
-                nesterov=momentum>0
-            )
-        else:
-            raise Exception("Unkown optimizer: {}".format(optimizer))
-
-        self.scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(self.optimizer, factor=0.5, patience=10)
-
-        self.dataloader = DataLoader(data_set, batch_size=batch_size, shuffle=True)
-        self.dataloader_eval = DataLoader(data_set_eval, batch_size=batch_size, shuffle=False)
-        self.criterion = nn.CrossEntropyLoss()
         return True
 
 
