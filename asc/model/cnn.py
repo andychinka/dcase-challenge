@@ -152,12 +152,13 @@ class ConvBlock(nn.Module):
 
 class Cnn_9layers_AvgPooling(nn.Module):
 
-    def __init__(self, classes_num=10, activation="logsoftmax"):
+    def __init__(self, classes_num=10, activation="logsoftmax", permute=True, in_channel=1):
         super(Cnn_9layers_AvgPooling, self).__init__()
 
         self.activation = activation
+        self.permute = permute
 
-        self.conv_block1 = ConvBlock(in_channels=1, out_channels=64)
+        self.conv_block1 = ConvBlock(in_channels=in_channel, out_channels=64)
         self.conv_block2 = ConvBlock(in_channels=64, out_channels=128)
         self.conv_block3 = ConvBlock(in_channels=128, out_channels=256)
         self.conv_block4 = ConvBlock(in_channels=256, out_channels=512)
@@ -179,7 +180,7 @@ class Cnn_9layers_AvgPooling(nn.Module):
         # '''(batch_size, 1, times_steps, freq_bins)'''
 
         '''Input: (batch_size, 1, freq_bins, times_steps)'''
-        x = input.permute(0, 1, 3, 2)
+        x = input.permute(0, 1, 3, 2) if self.permute else input
         '''(batch_size, 1, times_steps, freq_bins)'''
 
         x = self.conv_block1(x, pool_size=(2, 2), pool_type='avg')

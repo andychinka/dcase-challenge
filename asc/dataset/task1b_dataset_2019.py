@@ -1,6 +1,6 @@
 from torch.utils.data import Dataset
 import pandas as pd
-import pickle
+import numpy as np
 
 
 class Task1bDataSet2019(Dataset):
@@ -13,7 +13,7 @@ class Task1bDataSet2019(Dataset):
         self.db_path = db_path
         self.class_map = class_map
         df = pd.read_csv("{}/evaluation_setup/fold1_{}.csv".format(db_path, mode), sep="\t")
-        self.X_filepaths = df["filename"].str.replace("audio", feature_folder, n=1).str.replace(".wav", ".p")
+        self.X_filepaths = df["filename"].str.replace("audio", feature_folder, n=1).str.replace(".wav", ".npy")
 
         #TODO: maybe refer to meta.csv
         if mode == "test":
@@ -22,7 +22,7 @@ class Task1bDataSet2019(Dataset):
             else:
                 fp_list = []
                 y_classnames = []
-                trg_suffix = "-{}.p".format(device)
+                trg_suffix = "-{}.npy".format(device)
                 for index, fp in self.X_filepaths.items():
                     if not fp[-4:] == trg_suffix:
                         continue
@@ -44,8 +44,26 @@ class Task1bDataSet2019(Dataset):
     def __getitem__(self, idx):
 
         path = self.X_filepaths[idx]
+
+        scene, city, device = self.parse_filename(path)
+
         f = open("{}/{}".format(self.db_path, path), 'rb')
-        feature = pickle.load(f)
+        feature = np.load(f)
         label = self.class_map[self.y_classnames[idx]]
 
-        return feature, label
+        return feature, label, city, device
+
+    def parse_filename(self, path: str):
+        # Path: <feature_folder>/<scene>-<city>-<###>-<###>-<device>.xxx
+        path = path.split(".")[0]  # remove the file extension part
+        filename = path.split("/")[-1] # remove feature folder
+        filename_parts = filename.split("-")
+
+        scene, city, device = None, None, None
+
+        if len(filename_parts) == 5:
+            scene = filename_parts[0]
+            city = filename_parts[1]
+            device = filename_parts[-1]
+
+        return scene, city, device

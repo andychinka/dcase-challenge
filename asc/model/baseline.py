@@ -3,7 +3,7 @@ import torch.nn as nn
 
 class Baseline(nn.Module):
 
-    def __init__(self):
+    def __init__(self, full_connected_in=128):
         super(Baseline, self).__init__()
 
         self.cnn1 = nn.Sequential(
@@ -33,7 +33,7 @@ class Baseline(nn.Module):
         )
 
         self.hidden = nn.Sequential(
-            nn.Linear(in_features=128, out_features=100),
+            nn.Linear(in_features=full_connected_in, out_features=100),
             nn.ReLU(),
             nn.Dropout2d(0.3),
             nn.Linear(in_features=100, out_features=10),

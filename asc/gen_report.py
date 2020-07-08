@@ -3,6 +3,7 @@ import hashlib
 import os
 import json
 import pandas as pd
+import torch
 
 import matplotlib.pyplot as plt
 
@@ -99,6 +100,7 @@ def gen_report(result_folder: str):
                     # "mixup_concat_ori": mixup_concat_ori,
                     "max_acc": max_acc,
                     "plot_path": "<img style='width: 400px' src='{}_{}_loss_acc.png'/>".format(result_folder_rel, id),
+                    "result_details": "",
                 }
 
                 ignore_cols = ["feature_folder", "db_path", "model_save_fp", "model_cls", "model_args", "data_set_cls", "test_fn"]
@@ -106,6 +108,14 @@ def gen_report(result_folder: str):
                     if key in ignore_cols:
                         continue
                     report[key] = config[key]
+
+                # result details: table of best_model.eval_raw data
+                best_model_fp = '{}/{}/best_model.pth'.format(result_folder, logdir.split("/")[-1])
+                if not os.path.exists(best_model_fp):
+                    print("best_model not found, no eval raw data")
+                else:
+                    cp = torch.load(best_model_fp)
+                    report["result_details"] = get_raw_result_table(cp["eval_raw"], id=id)
                 reports.append(report)
 
     with open('report/{}.json'.format(result_folder_rel), 'w') as fp:
@@ -113,17 +123,22 @@ def gen_report(result_folder: str):
 
     df = pd.DataFrame.from_dict(reports)
     df.to_csv('report/{}.csv'.format(result_folder_rel))
-    df.to_html('report/{}.html'.format(result_folder_rel), escape=False, bold_rows=False, table_id=None)
+    tbl_html = df.to_html(None, escape=False, bold_rows=False, table_id="datatable-raw")
 
-    with open('report/{}.html'.format(result_folder_rel), "a") as file_object:
+    with open('report/{}.html'.format(result_folder_rel), "w") as file_object:
         file_object.write("""        
         <script src="https://ajax.googleapis.com/ajax/libs/jquery/3.5.1/jquery.min.js"></script>
         <link rel="stylesheet" type="text/css" href="https://cdn.datatables.net/1.10.21/css/jquery.dataTables.css">
         <script type="text/javascript" charset="utf8" src="https://cdn.datatables.net/1.10.21/js/jquery.dataTables.js"></script>
         
+        <script src="https://cdnjs.cloudflare.com/ajax/libs/pivottable/2.23.0/pivot.min.js"></script>
+        <link rel="stylesheet" type="text/css" href="https://cdnjs.cloudflare.com/ajax/libs/pivottable/2.23.0/pivot.min.css">
+        <script src="https://code.jquery.com/ui/1.12.0/jquery-ui.min.js"></script>
+        <script src="https://cdn.plot.ly/plotly-1.2.0.min.js"></script>
+        
         <script>
           $(document).ready( function () {
-            var table = $('table').DataTable({
+            var table = $('#datatable-raw').DataTable({
                 paging: false,
                 columnDefs: [
                     {
@@ -135,6 +150,9 @@ def gen_report(result_folder: str):
                 initComplete: function () {
                     this.api().columns().every( function () {
                         var column = this;
+                        if (["result_details", "plot_path"].includes(column.header().textContent)){
+                          return;
+                        }
                         var select = $('<select><option value=""></option></select>')
                             .appendTo( $(column.header()) )
                             .on( 'change', function () {
@@ -155,19 +173,31 @@ def gen_report(result_folder: str):
             });
 
             //highlight
-            $('tbody').on( 'mouseenter', 'td', function () {
-              var colIdx = table.cell(this).index().column;
-              $( table.cells().nodes() ).removeClass( 'highlight' );
-              $( table.column( colIdx ).nodes() ).addClass( 'highlight' );
-            });
+            //$('tbody').on( 'mouseenter', 'td', function () {
+            //  var colIdx = table.cell(this).index().column;
+            //  $( table.cells().nodes() ).removeClass( 'highlight' );
+            //  $( table.column( colIdx ).nodes() ).addClass( 'highlight' );
+            //});
         });
         </script>
         <style>
           td.highlight {
               background-color: whitesmoke !important;
           }
+          td {
+            vertical-align: top;
+          }
+          
+          .pivot { 
+            display: none 
+          }
+            .pvtAggregator{ //Pivot Table Function select
+                max-width: 50px;
+            }
         </style>
         """)
+
+        file_object.write(tbl_html)
 
     df.to_html('report/{}-pivot.html'.format(result_folder_rel), escape=False, bold_rows=False, table_id="raw-table")
     with open('report/{}-pivot.html'.format(result_folder_rel), "a") as file_object:
@@ -197,8 +227,107 @@ def gen_report(result_folder: str):
         </script>
         """)
 
-    print(reports)
+    # print(reports)
+    print("done")
 
+def get_raw_result_table(raw, id):
+    df = pd.DataFrame.from_dict(raw)
+    #aggrate the data scene, device, city
+    df_scene = df.groupby(["scene"], as_index=False).mean()
+    df_device = df.groupby(["device"], as_index=False).mean()
+    df_city = df.groupby(["city"], as_index=False).mean()
+
+    df_scene_cnt = df.groupby(["scene"], as_index=False).count()[["scene", "acc"]].rename(columns={"acc": "cnt"})
+    df_cm = df.groupby(["scene", "predicted"], as_index=False).count()
+    df_cm = df_cm.join(df_scene_cnt, rsuffix="_", on="scene").drop(columns=["scene_"])
+    df_cm["acc"] = df_cm["acc"] / df_cm["cnt"]
+
+    # tbl_html = df.to_html(None, escape=False, bold_rows=False, table_id="pivot-raw-" + id, classes="pivot").replace("\n", "")
+    tbl_scene = df_scene.to_html(None, escape=False, bold_rows=False, table_id="pivot-raw-scene-" + id, classes="pivot").replace("\n", "")
+    tbl_device = df_device.to_html(None, escape=False, bold_rows=False, table_id="pivot-raw-device-" + id,
+                                 classes="pivot").replace("\n", "")
+    tbl_city = df_city.to_html(None, escape=False, bold_rows=False, table_id="pivot-raw-city-" + id,
+                                 classes="pivot").replace("\n", "")
+    tbl_cm = df_cm.to_html(None, escape=False, bold_rows=False, table_id="pivot-raw-cm-" + id,
+                                 classes="pivot").replace("\n", "")
+
+    tbl_html = tbl_scene + tbl_device + tbl_city + tbl_cm
+
+    tbl_html += """
+        <table>
+            <thead><tr>
+                <th>By Scene</th>
+                <th>By Device</th>
+                <th>By City</th>
+                <th>Confusion Matrix</th>
+            </tr></thead>
+            <tbody>
+                <tr>
+                    <td><div id="pivot-table-by-scene-{id}"></div></td>
+                    <td><div id="pivot-table-by-device-{id}"></div></td>
+                    <td><div id="pivot-table-by-city-{id}"></div></td>
+                    <td><div id="pivot-table-cm-{id}"></div></td>
+                </tr>
+            </tbody>
+        </table>
+        <script>
+            $(function(){{
+                let heatmapOption = {{
+                    colorScaleGenerator: function(values) {{
+                        return Plotly.d3.scale.linear().domain([0, 0.5, 1]).range(["#F00", "#FFF", "#34eb74"])
+                    }}
+                }};
+                let heatmapCmOption = {{
+                    colorScaleGenerator: function(values) {{
+                        return Plotly.d3.scale.linear().domain([0, 1]).range(["#FFF", "#00F"])
+                    }}
+                }};
+                $("#pivot-table-by-scene-{id}").pivotUI($("#pivot-raw-scene-{id}"),{{
+                    rows: ["scene"],
+                    vals: ["acc"],
+                    showUI: false,
+                    aggregatorName: "Average",
+                    rendererName: "Heatmap",
+                    rendererOptions: {{
+                        heatmap: heatmapOption
+                    }}
+                }});
+                $("#pivot-table-by-device-{id}").pivotUI($("#pivot-raw-device-{id}"),{{
+                    rows: ["device"],
+                    vals: ["acc"],
+                    showUI: false,
+                    aggregatorName: "Average",
+                    rendererName: "Heatmap",
+                    rendererOptions: {{
+                        heatmap: heatmapOption
+                    }}
+                }});
+                $("#pivot-table-by-city-{id}").pivotUI($("#pivot-raw-city-{id}"),{{
+                    rows: ["city"],
+                    vals: ["acc"],
+                    showUI: false,
+                    aggregatorName: "Average",
+                    rendererName: "Heatmap",
+                    rendererOptions: {{
+                        heatmap: heatmapOption
+                    }}
+                }});
+                $("#pivot-table-cm-{id}").pivotUI($("#pivot-raw-cm-{id}"),{{
+                    rows: ["scene"],
+                    cols: ["predicted"],
+                    vals: ["acc"],
+                    showUI: false,
+                    aggregatorName: "Sum",
+                    rendererName: "Heatmap",
+                    rendererOptions: {{
+                        heatmap: heatmapCmOption
+                    }}
+                }});
+            }});
+        </script>
+    """.format(id=id).replace("\n", "")
+
+    return tbl_html.strip()
 
 def plot_loss_acc(train_losses_list, eval_losses_list, acc_list, save_fp):
     handles = []
@@ -226,4 +355,4 @@ def plot_loss_acc(train_losses_list, eval_losses_list, acc_list, save_fp):
 
 if __name__ == "__main__":
 
-    gen_report("../ray_results/2020_diff_net2")
+    gen_report("../ray_results/2019_diff_net")

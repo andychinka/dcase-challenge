@@ -28,7 +28,10 @@ class Task1aDataSet2019(Dataset):
 
     def __getitem__(self, idx):
 
-        path = self.X_filepaths[idx]
+        path = self.X_filepaths[idx] #<scene>-<city>-<###>-<###>-<device>
+
+        scene, city, device = self.parse_filename(path)
+
         f = open("{}/{}".format(self.db_path, path), 'rb')
         feature = pickle.load(f)
         # feature = np.expand_dims(feature["_data"][:, :-1], axis=0)
@@ -37,4 +40,20 @@ class Task1aDataSet2019(Dataset):
         # feature = feature["_data"][:, :-1]
         label = self.class_map[self.y_classnames[idx]]
 
-        return feature, label
+        return feature, label, city, device
+
+    def parse_filename(self, path: str):
+        # Path: <scene>-<city>-<###>-<###>-<device>.xxx
+        path = path.split(".")[0]  # remove the file extension part
+        filename = path.split("/")[-1]  # remove feature folder
+        filename_parts = filename.split("-")
+
+        scene, city, device = None, None, None
+
+        if len(filename_parts) == 5:
+            scene = filename_parts[0]
+            city = filename_parts[1]
+            device = filename_parts[-1]
+
+        return scene, city, device
+
