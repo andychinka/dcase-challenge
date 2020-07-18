@@ -106,52 +106,6 @@ def evaluate(model, dataloader):
 
     return (total_loss / batch), acc, class_correct, class_total, confusion_matrix, raw
 
-def _evaluate(model, dataloader):
-    model.eval()
-
-    total_loss = 0
-    batch = 0
-
-    class_correct = list(0. for i in range(10))
-    class_total = list(0. for i in range(10))
-    confusion_matrix = np.zeros((10, 10), dtype=int) # 2D, [actual_cls][predicted_cls]
-    criterion = nn.CrossEntropyLoss()
-    with torch.no_grad():
-        for x, targets, cities, devices in dataloader:
-            x = torch.FloatTensor(x).to(device)
-            targets = torch.LongTensor(targets).to(device)
-            outputs = model(x)
-            loss = criterion(outputs, targets)
-            total_loss += loss.item()
-
-            outputs = F.log_softmax(outputs, dim=-1)
-            _, predicted = torch.max(outputs, 1)
-
-            c = (predicted == targets).squeeze()
-            for i in range(len(targets)):
-                label = targets[i]
-                class_correct[label] += c[i].item()
-                class_total[label] += 1
-
-                # TODO: check if this confusion matrix implemented wrongly before
-                # confusion_matrix[label.item()][predicted[label.item()].item()] += 1
-                confusion_matrix[label.item()][predicted[i].item()] += 1
-                """
-                confusion_matrix[label.item()][predicted[label.item()].item()] += 1
-                IndexError: index 9 is out of bounds for dimension 0 with size 8 at time: 1.5905e+09
-                """
-
-            batch += 1
-    acc = np.array(class_correct).sum() / np.array(class_total).sum()
-    print("Overall Acc: {}".format(acc))
-    for i in range(10):
-        if class_total[i] == 0:
-            continue
-        print('Accuracy of {} : {}%'.format(i, 100 * class_correct[i] / class_total[i]))
-
-    return (total_loss / batch), acc, class_correct, class_total, confusion_matrix
-
-
 #TODO: move to another package
 def test_task1a_2018(model, db_path, feature_folder, model_save_fp):
 
@@ -254,7 +208,7 @@ class Trainable(tune.Trainable):
         self.train_losses = []
         self.eval_losses = []
         self.log_interval = 10
-        self.early_stop_thres = 20
+        self.early_stop_thres = 50
         self.start_time = time.time()
 
         self.best_acc = 0
@@ -441,145 +395,6 @@ class Trainable(tune.Trainable):
 
         return True
 
-
-def train(c):
-
-    db_path= c["db_path"]
-    feature_folder = c["feature_folder"]
-    model_save_fp = c["model_save_fp"]
-    model_cls = c["model_cls"]
-    model_args = c["model_args"]
-    data_set_cls = c["data_set_cls"]
-    test_fn = c["test_fn"]
-    batch_size = c["batch_size"]
-    lr = c["lr"]
-    mixup_alpha = c["mixup_alpha"]
-
-    data_set = data_set_cls(db_path, config.class_map, feature_folder=feature_folder)
-    data_set_eval = data_set_cls(db_path, config.class_map, feature_folder=feature_folder, mode="evaluate")
-
-
-    max_ep = 100
-    losses = []
-    train_losses = []
-    eval_losses = []
-    log_interval = 10
-    early_stop_thres = 20
-    start_time = time.time()
-
-    best_acc = 0
-    previous_acc = 0
-    not_improve_cnt = 0
-
-    current_lr = lr
-    model = model_cls(**model_args).to(device)
-    optimizer = torch.optim.Adam(model.parameters(), lr=lr)
-    scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(optimizer, factor=0.5, patience=10)
-
-    dataloader = DataLoader(data_set, batch_size=batch_size, shuffle=True)
-    dataloader_eval = DataLoader(data_set_eval, batch_size=batch_size, shuffle=False)
-    criterion = nn.CrossEntropyLoss()
-
-    for current_ep in range(max_ep):
-        model.train()
-        batch = 0
-        total_loss = 0
-        ep_start_time = time.time()
-
-        for param_group in optimizer.param_groups:
-            current_lr = param_group['lr']
-
-        for x, targets in dataloader:
-            # if not x.shape == (1, 1, 40, 500):
-            #     continue
-            inputs, targets_a, targets_b, lam = data_aug.mixup_data(x, targets,
-                                                           mixup_alpha, torch.cuda.is_available())
-            # inputs, targets_a, targets_b = map(Variable, (inputs,
-            #                                               targets_a, targets_b))
-
-            inputs = torch.FloatTensor(inputs).to(device)
-            outputs = model(inputs)
-            loss = data_aug.mixup_criterion(criterion, outputs, targets_a.to(device), targets_b.to(device), lam)
-
-            # x = torch.FloatTensor(x).to(device)
-            # targets = torch.LongTensor(targets).to(device)
-            # loss = model.get_loss(x, targets)
-
-            losses.append(loss.item())
-            total_loss += loss.item()
-            # print(loss.item())
-
-            optimizer.zero_grad()
-            loss.backward()
-            optimizer.step()
-
-            if batch % log_interval == 0 and batch > 0:
-                avg_loss = total_loss / batch
-                print('| epoch {:3d} | {:5d} batches | '
-                      'loss {:5.2f} | lr {}'.format(current_ep, batch, avg_loss, current_lr))
-
-            batch += 1
-
-        train_losses.append(total_loss / batch)
-
-        # save check point
-        # torch.save({
-        #     "ep": current_ep,
-        #     "train_losses": train_losses,
-        #     "model_state_dict": model.state_dict(),
-        #     "optimizer_state_dict": optimizer.state_dict(),
-        # }, model_save_fp.format("cp"))
-
-        # evaluation here
-        eval_loss, acc, class_correct, class_total, confusion_matrix = evaluate(model, dataloader_eval)
-        eval_losses.append(eval_loss)
-        print("eval loss: {}, acc: {}".format(eval_loss, acc))
-
-        tune.track.log(acc=acc, train_loss=(total_loss / batch), val_loss=eval_loss, lr=current_lr)
-
-        print("time used for {} ep: {}".format(current_ep, time.time() - ep_start_time))
-
-        plot_loss(train_losses, eval_losses, current_ep, model_save_fp)
-
-        if acc > best_acc:
-            not_improve_cnt = 0
-            best_acc = acc
-            print("best model found! save it.")
-            # store best model
-            torch.save({
-                "ep": current_ep,
-                "train_losses": train_losses,
-                "eval_loss": eval_loss,
-                "acc": acc,
-                "class_correct": class_correct,
-                "class_total": class_total,
-                "model_state_dict": model.state_dict(),
-                "optimizer_state_dict": optimizer.state_dict(),
-            }, model_save_fp.format("best"))
-        else:
-            not_improve_cnt += 1
-
-        # if acc < previous_acc:
-        #     lr = lr * 0.9
-        #     print("Acc. decrease, reduce lr to ", lr)
-        #     for param_group in optimizer.param_groups:
-        #         param_group['lr'] = lr
-        scheduler.step(eval_loss)
-
-        previous_acc = acc
-
-        if not_improve_cnt >= early_stop_thres:
-            print("Early stop triggered! model does not improved for {} epochs".format(not_improve_cnt))
-            break
-
-    # load the best model
-    best_cp = torch.load(model_save_fp.format("best"))
-    best_model = model_cls(**model_args).to(device)
-    best_model.load_state_dict(best_cp["model_state_dict"])
-
-    test_fn(best_model, db_path, feature_folder, model_save_fp)
-
-    print("Done. Time used: ", time.time() - start_time)
 
 def plot_loss(train_losses_list, eval_losses_list, ep, model_save_fp):
     handles = []

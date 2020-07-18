@@ -4,13 +4,13 @@ from ray import tune
 from asc.train import Trainable
 from asc.train import TrainStopper
 
-from asc.model import cnn
+from asc.model.resnet_mod import ResNetMod
 from asc.dataset.task1b_dataset_2019 import Task1bDataSet2019
 
 exp = ray.tune.Experiment(
             run=Trainable,
             config={
-                "network": tune.grid_search(["cnn9avg_amsgrad_permute"]),
+                "network": tune.grid_search(["resnet_mod"]),
                 "optimizer": tune.grid_search(["AdamW"]),
                 "lr": tune.grid_search([0.0001]),
                 # weight_decay == 0.1 is very bad
@@ -22,12 +22,8 @@ exp = ray.tune.Experiment(
                 "mixup_concat_ori": tune.grid_search([True]),
                 "feature_folder": tune.grid_search(["logmel_delta2_128_44k"]),
                 "db_path": "/home/hw1-a07/dcase/datasets/TAU-urban-acoustic-scenes-2019-mobile-development",
-                "model_cls": cnn.Cnn_9layers_AvgPooling,
+                "model_cls": ResNetMod,
                 "model_args": {
-                    "in_channel": 3,
-                    "classes_num": 10,
-                    "activation": 'logsoftmax',
-                    "permute": True,
                 },
                 "data_set_cls": Task1bDataSet2019,
                 "test_fn": None,  # no use here
