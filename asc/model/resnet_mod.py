@@ -123,7 +123,7 @@ class ResNetModSub(nn.Module):
 
 class ResNetMod(nn.Module):
 
-    def __init__(self):
+    def __init__(self, out_kernel_size=(132,31)):
         super(ResNetMod, self).__init__()
 
         self.high_resnet = ResNetModSub()
@@ -146,9 +146,9 @@ class ResNetMod(nn.Module):
         self.out_bn = nn.BatchNorm2d(10, affine=False)
 
         #ref: global avg pooling https://discuss.pytorch.org/t/global-average-pooling-in-pytorch/6721/3
-        self.out_avg_pool = nn.AvgPool2d(kernel_size=(132, 31))  #TODO: set the kernel_size
+        self.out_avg_pool = nn.AvgPool2d(kernel_size=out_kernel_size)  #TODO: set the kernel_size
 
-        self.fc = nn.Linear(132* 31*10, 10)
+        self.fc = nn.Linear(out_kernel_size[0] * out_kernel_size[1] * 10, 10)
 
     def forward(self, x):
 

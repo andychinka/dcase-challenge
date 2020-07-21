@@ -200,6 +200,7 @@ class Trainable(tune.Trainable):
         optimizer = c["optimizer"]
         momentum = None if "momentum" not in c else c["momentum"]
         resume_model = None if "resume_model" not in c else c["resume_model"]
+        self.temporal_crop_length = None if "temporal_crop_length" not in c else c["temporal_crop_length"]
 
         data_set = data_set_cls(db_path, config.class_map, feature_folder=feature_folder)
         data_set_eval = data_set_cls(db_path, config.class_map, feature_folder=feature_folder, mode="evaluate")
@@ -282,7 +283,10 @@ class Trainable(tune.Trainable):
         for batch, (x, targets, cities, devices) in enumerate(self.dataloader):
             self.optimizer.zero_grad()
 
-            inputs, targets_a, targets_b, lam = data_aug.mixup_data(x, targets,
+            if self.temporal_crop_length:
+                inputs = data_aug.temporal_crop(x, self.temporal_crop_length)
+
+            inputs, targets_a, targets_b, lam = data_aug.mixup_data(inputs, targets,
                                                                     self.mixup_alpha,
                                                                     device.type == "cuda",
                                                                     self.mixup_concat_ori)

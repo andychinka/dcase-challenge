@@ -20,6 +20,7 @@ exp = ray.tune.Experiment(
                 "mini_batch_cnt": 16, # actually batch_size = 256/16 = 16
                 "mixup_alpha": tune.grid_search([0.5]),
                 "mixup_concat_ori": tune.grid_search([True]),
+                "temporal_crop_length": tune.grid_search([400]),
                 "feature_folder": tune.grid_search(["logmel_delta2_128_44k"]),
                 "db_path": "/home/hw1-a07/dcase/datasets/TAU-urban-acoustic-scenes-2019-mobile-development",
                 "model_cls": cnn.Cnn_9layers_AvgPooling,
