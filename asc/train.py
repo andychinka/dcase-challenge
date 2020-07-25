@@ -30,6 +30,7 @@ device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 # os.environ['CUDA_VISIBLE_DEVICES'] = '-1'
 # device = torch.device("cpu")
 
+# it's now only support for batch_size = 1, as need to record the acc by different dimension
 def evaluate(model, dataloader):
     model.eval()
 
@@ -198,9 +199,11 @@ class Trainable(tune.Trainable):
         self.mixup_concat_ori = c["mixup_concat_ori"]
         weight_decay = c["weight_decay"]
         optimizer = c["optimizer"]
+        scheduler = "ReduceLROnPlateau" if "scheduler" not in c else c["scheduler"]
         momentum = None if "momentum" not in c else c["momentum"]
         resume_model = None if "resume_model" not in c else c["resume_model"]
         self.temporal_crop_length = None if "temporal_crop_length" not in c else c["temporal_crop_length"]
+        self.smoke_test = False if "smoke_test" not in c else c["smoke_test"]
 
         data_set = data_set_cls(db_path, config.class_map, feature_folder=feature_folder)
         data_set_eval = data_set_cls(db_path, config.class_map, feature_folder=feature_folder, mode="evaluate")
@@ -265,7 +268,13 @@ class Trainable(tune.Trainable):
             self.previous_acc = cp["acc"]
             self.current_ep = cp["ep"]
 
-        self.scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(self.optimizer, factor=0.5, patience=10)
+        if scheduler == "ReduceLROnPlateau":
+            self.scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(self.optimizer, factor=0.5, patience=10)
+        elif scheduler == "CosineAnnealingWarmRestarts":
+            self.scheduler = torch.optim.lr_scheduler.CosineAnnealingWarmRestarts(self.optimizer,
+                                                                                  T_0=3, T_mult=2, eta_min=self.lr*1e-4, last_epoch=-1)
+        else:
+            raise Exception("Unkown scheduler: {}".format(scheduler))
 
         self.dataloader = DataLoader(data_set, batch_size=batch_size, shuffle=True)
         self.dataloader_eval = DataLoader(data_set_eval, batch_size=1, shuffle=False)
@@ -312,7 +321,10 @@ class Trainable(tune.Trainable):
                 print('| epoch {:3d} | {:5d} batches | loss {:5.2f} | lr {}'
                       .format(self.current_ep, batch, avg_loss, self.current_lr))
 
-            # batch += 1
+            if self.smoke_test and batch % self.log_interval == 0 and batch > 0:
+                print("----------SMOKE TEST ENABLE, finish the ep---------")
+                break
+
 
         self.train_losses.append(total_loss / batch)
 

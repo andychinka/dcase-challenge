@@ -8,10 +8,12 @@ from asc.config import class_map
 
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
-def inference(model_path, model_cls, model_args):
+"""
+This inference format is basic on kaggle required submission format
+"""
+def inference(db_path, model_path, model_cls, model_args, output_csv_fp):
 
     model = model_cls(**model_args).to(device)
-    db_path = "/home/hw1-a07/dcase/datasets/TAU-urban-acoustic-scenes-2019-mobile-leaderboard"
 
     #Load Model
     cp = torch.load(model_path)
@@ -38,14 +40,19 @@ def inference(model_path, model_cls, model_args):
         inference_results[i] = list(class_map.keys())[r]
 
     df = pd.DataFrame(data={"Scene_label": inference_results})
-    df.to_csv("./predict.csv", sep=',', index=True, index_label="Id")
+    df.to_csv(output_csv_fp, sep=',', index=True, index_label="Id")
 
 
 if __name__ == "__main__":
     from asc.model.resnet_mod import ResNetMod
+
+    # TODO: hanlding diff model, dataset
+
+    db_path = "/home/hw1-a07/dcase/datasets/TAU-urban-acoustic-scenes-2019-mobile-leaderboard"
     model_path = "/home/hw1-a07/dcase/result/ray_results/2019_diff_net/Trainable_0_batch_size=256,feature_folder=logmel_delta2_128_44k,lr=0.0001,mixup_alpha=0.5,mixup_concat_ori=True,network=resnet_mod_2020-07-14_13-47-567dphtomu/best_model.pth"
     model_cls = ResNetMod
     model_args = {
         "out_kernel_size": (132,31)
     }
-    inference(model_path, model_cls, model_args)
+    output_csv_fp = "./predict.csv"
+    inference(db_path, model_path, model_cls, model_args, output_csv_fp)

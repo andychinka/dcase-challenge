@@ -152,11 +152,12 @@ class ConvBlock(nn.Module):
 
 class Cnn_9layers_AvgPooling(nn.Module):
 
-    def __init__(self, classes_num=10, activation="logsoftmax", permute=True, in_channel=1):
+    def __init__(self, classes_num=10, activation="logsoftmax", permute=True, in_channel=1, skip_output=False):
         super(Cnn_9layers_AvgPooling, self).__init__()
 
         self.activation = activation
         self.permute = permute
+        self.skip_output = skip_output
 
         self.conv_block1 = ConvBlock(in_channels=in_channel, out_channels=64)
         self.conv_block2 = ConvBlock(in_channels=64, out_channels=128)
@@ -191,7 +192,9 @@ class Cnn_9layers_AvgPooling(nn.Module):
 
         x = torch.mean(x, dim=3)  # (batch_size, feature_maps, time_stpes)
         (x, _) = torch.max(x, dim=2)  # (batch_size, feature_maps)
-        x = self.fc(x)
+
+        if not self.skip_output:
+            x = self.fc(x)
         return x
 
         # if self.activation == 'logsoftmax':
@@ -208,6 +211,39 @@ class Cnn_9layers_AvgPooling(nn.Module):
 
     def cal_loss(self, output, targets):
         return self.criterion(output, targets)
+
+class Cnn_9layers_AvgPooling_SepFreq(nn.Module):
+
+    def __init__(self, classes_num=10, activation="logsoftmax", permute=True, in_channel=1):
+        super(Cnn_9layers_AvgPooling_SepFreq, self).__init__()
+
+        self.activation = activation
+        self.permute = permute
+
+        self.low_conv = Cnn_9layers_AvgPooling(classes_num, activation, permute, in_channel, skip_output=True)
+        self.high_conv = Cnn_9layers_AvgPooling(classes_num, activation, permute, in_channel, skip_output=True)
+
+        self.fc = nn.Linear(1024, classes_num, bias=True)
+
+        self.init_weights()
+
+    def init_weights(self):
+
+        init_layer(self.fc)
+
+    def forward(self, x):
+        # Split the data
+        low_x = x[:, :, 0:64, :]
+        high_x = x[:, :, 64:128, :]
+
+        low_out = self.low_conv(low_x)
+        high_out = self.high_conv(high_x)
+
+        # concate togather
+        out = torch.cat((low_out, high_out), 1)
+        x = self.fc(out)
+        return x
+
 
 
 class Cnn_9layers_MaxPooling(nn.Module):

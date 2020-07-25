@@ -2,7 +2,7 @@ from torch.utils.data import Dataset
 import pandas as pd
 import pickle
 import numpy as np
-from specAugment import spec_augment_tensorflow
+# from specAugment import spec_augment_tensorflow
 
 class Task1aDataSet2020(Dataset):
 
