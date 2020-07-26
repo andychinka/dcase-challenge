@@ -4,10 +4,10 @@ Code for experiencing challenges in DCASE across different years and models
 ## Getting Started
 ### Prerequisites
 
-TODO
+TODO: Requirements.txt isn't verified yet, as least torch is not in it
 
 ```
-pip install TODO
+pip install -r requirements.txt
 ```
 
 Download or clone this git repository.
@@ -33,23 +33,41 @@ There are some downloader script under the folder "downloader"
 
 #### 1. Preprocess Data
 
+See the script under asc.preprocess
+
 ```bash
-python preprocess.py -db_path=<folder> -feature_folder=<folder>
+TODO
 ```
 
-#### 2. Build Model
+#### 2. Training + Evaluate Model
 
+See script under asc.exp
 ```
-python train.py -db_path=<folder> -feature_folder=<folder> -model_save_fp=<filepath> -task=<task name> -model=<model name>
-```
-Example: Run 2018 Task 1A with baseline model
-```bash
-python train.py -db_path=<folder> - feature_folder=<folder> -task=task1a-2018 -model=baseline
+TODO
 ```
 
-#### 3. Generate Test Result
+To Evaluate only, see evaluate.py
+
+```
+TODO
+```
+
+#### 3. Generate Report for expirement
+
+See gen_report.py
+
+```
+TODO
+```
+
+TODO: description for the report result
+
+#### 4. Inference (For Kaggle)
+
+See inference.py
+
 ```bash
-python gen_result.py -model_fp_format=<the model result file format> -run_cnt=<number of model ran> -output_folder=<result will save to this folder> -task=<task name>
+TODO
 ```
 
 ## Authors/Contact
