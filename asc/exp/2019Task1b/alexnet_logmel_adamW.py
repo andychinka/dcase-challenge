@@ -1,8 +1,11 @@
 import ray
 from ray import tune
+import os
+from torchvision import transforms
 
 from asc.train import Trainable
 from asc.train import TrainStopper
+from asc.dataset import transform_utils
 
 from asc.model.alexnet import AlexNet
 from asc.dataset.task1b_dataset_2019 import Task1bDataSet2019
@@ -14,27 +17,31 @@ exp = ray.tune.Experiment(
                 "optimizer": tune.grid_search(["AdamW"]),
                 "lr": tune.grid_search([0.0001]),
                 # weight_decay == 0.1 is very bad
-                "weight_decay": tune.grid_search([0, 0.001]),
+                "weight_decay": tune.grid_search([0]),
                 "momentum": None,
                 # "momentum": tune.grid_search([0, 0.1, 0.5, 0.9]),
-                "batch_size": tune.grid_search([256]),
-                "mini_batch_cnt": 16, # actually batch_size = 256/16 = 16
-                "mixup_alpha": tune.grid_search([0.5]),
-                "mixup_concat_ori": tune.grid_search([True]),
-                "feature_folder": tune.grid_search(["logmel_40_44k", "logmel_128_44k"]),
-                "db_path": "/home/hw1-a07/dcase/datasets/TAU-urban-acoustic-scenes-2019-mobile-development",
+                "batch_size": tune.grid_search([32]),
+                "mini_batch_cnt": 1, # actually batch_size = 256/16 = 16
+                "mixup_alpha": tune.grid_search([0]),
+                "mixup_concat_ori": tune.grid_search([False]),
+                "feature_folder": tune.grid_search(["logmel_128_44k"]),
+                "db_path": os.getenv("HOME") + "/dcase/datasets/TAU-urban-acoustic-scenes-2019-mobile-development",
                 "model_cls": AlexNet,
                 "model_args": {
                     "num_classes": 10,
                     "in_channel": 1,
                 },
+                "composed_transform": transforms.Compose([
+                    transform_utils.SelectChannel(0),
+                    transform_utils.Normalizer()
+                ]),
                 "data_set_cls": Task1bDataSet2019,
                 "test_fn": None,  # no use here
             },
-            name="2019_diff_net",
+            name="2019_diff_net_report",
             num_samples=1,
-            local_dir="/home/hw1-a07/dcase/result/ray_results",
-            stop=TrainStopper(),
+            local_dir=os.getenv("HOME") +"/dcase/result/ray_results",
+            stop=TrainStopper(max_ep=200, stop_thres=200),
             checkpoint_freq=1,
             keep_checkpoints_num=1,
             checkpoint_at_end=True,

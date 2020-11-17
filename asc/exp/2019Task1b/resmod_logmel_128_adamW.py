@@ -1,43 +1,48 @@
 import ray
 from ray import tune
+import os
+from torchvision import transforms
 
 from asc.train import Trainable
 from asc.train import TrainStopper
+from asc.dataset import transform_utils
 
-from asc.model import cnn
+from asc.model.resnet_mod import ResNetMod
 from asc.dataset.task1b_dataset_2019 import Task1bDataSet2019
-import os
 
 exp = ray.tune.Experiment(
             run=Trainable,
             config={
-                "network": tune.grid_search(["cnn9avg_sepfreq_amsgrad_permute"]),
+                "network": tune.grid_search(["resnet_mod"]),
                 "optimizer": tune.grid_search(["AdamW"]),
                 "lr": tune.grid_search([0.0001]),
                 # weight_decay == 0.1 is very bad
-                "weight_decay": tune.grid_search([0.001]),
+                "weight_decay": tune.grid_search([0]),
                 "momentum": None,
-                "batch_size": tune.grid_search([256]),
-                "mini_batch_cnt": 16, # actually batch_size = 256/16 = 16
-                "mixup_alpha": tune.grid_search([0.5]),
-                "mixup_concat_ori": tune.grid_search([True]),
-                "temporal_crop_length": tune.grid_search([400]),
+                "batch_size": tune.grid_search([32]),
+                "mini_batch_cnt": 1, # actually batch_size = 256/16 = 16
+                "mixup_alpha": tune.grid_search([0]),
+                "mixup_concat_ori": tune.grid_search([False]),
+                # "temporal_crop_length": tune.grid_search([400]),
                 "feature_folder": tune.grid_search(["logmel_delta2_128_44k"]),
                 "db_path": os.getenv("HOME") + "/dcase/datasets/TAU-urban-acoustic-scenes-2019-mobile-development",
-                "model_cls": cnn.Cnn_9layers_AvgPooling_SepFreq,
+                "model_cls": ResNetMod,
                 "model_args": {
-                    "in_channel": 3,
-                    "classes_num": 10,
-                    "activation": 'logsoftmax',
-                    "permute": True,
+                    "in_channel": 1,
+                    "out_kernel_size": (132,29)
                 },
+                "composed_transform": transforms.Compose([
+                    transform_utils.SelectChannel(0),
+                    transform_utils.Normalizer()
+                ]),
                 "data_set_cls": Task1bDataSet2019,
                 "test_fn": None,  # no use here
+                # "resume_model": os.getenv("HOME") + "/dcase/result/ray_results/2019_diff_net/Trainable_0_batch_size=256,feature_folder=logmel_delta2_128_44k,lr=0.0001,mixup_alpha=0.5,mixup_concat_ori=True,network=resnet_mod_2020-08-13_14-31-34b86fzyih/checkpoint_78/model.pth",
             },
-            name="2019_diff_net",
+            name="2019_diff_net_report",
             num_samples=1,
-            local_dir=os.getenv("HOME") +"/dcase/result/ray_results",
-            stop=TrainStopper(max_ep=300, stop_thres=300),
+            local_dir=os.getenv("HOME") + "/dcase/result/ray_results",
+            stop=TrainStopper(max_ep=500, stop_thres=500),
             checkpoint_freq=1,
             keep_checkpoints_num=1,
             checkpoint_at_end=True,

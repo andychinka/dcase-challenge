@@ -30,6 +30,20 @@ device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 # os.environ['CUDA_VISIBLE_DEVICES'] = '-1'
 # device = torch.device("cpu")
 
+_hyperopt = None
+# TMP Code here
+def set_hyperopt(hyperopt):
+    global _hyperopt
+    print("set_hyperopt", hyperopt)
+    _hyperopt = hyperopt
+
+def save_hyperopt():
+    global _hyperopt
+    if _hyperopt is None:
+        return
+    print("-------save hyperopt-------", _hyperopt)
+    _hyperopt.save("./hyperopt.cp")
+
 # it's now only support for batch_size = 1, as need to record the acc by different dimension
 def evaluate(model, dataloader):
     model.eval()
@@ -58,7 +72,7 @@ def evaluate(model, dataloader):
             targets = torch.LongTensor(targets).to(device)
             outputs = model(x)
             loss = criterion(outputs, targets)
-            total_loss += loss.item()
+            total_loss += loss.detach().item()
 
             outputs = F.log_softmax(outputs, dim=-1)
             _, predicted = torch.max(outputs, 1)
@@ -185,18 +199,28 @@ def test_task1b_2019(model, db_path, feature_folder, model_save_fp):
 class Trainable(tune.Trainable):
 
     def _setup(self, c):
-        db_path = c["db_path"]
+        save_hyperopt()
+
+        db_path = c.get("db_path", os.getenv("HOME") + "/dcase/datasets/TAU-urban-acoustic-scenes-2019-mobile-development")
         feature_folder = c["feature_folder"]
         # self.model_save_fp = c["model_save_fp"]
         model_cls = c["model_cls"]
         model_args = c["model_args"]
-        data_set_cls = c["data_set_cls"]
+        data_set_cls = Task1bDataSet2019 #c["data_set_cls"]
         self.test_fn = c["test_fn"]
         batch_size = int(c["batch_size"] / c["mini_batch_cnt"])
         self.mini_batch_cnt = c["mini_batch_cnt"]
         self.lr = c["lr"]
         self.mixup_alpha = c["mixup_alpha"]
         self.mixup_concat_ori = c["mixup_concat_ori"]
+        self.specaug_freq_mask = None if "specaug_freq_mask" not in c else c["specaug_freq_mask"]
+        self.specaug_freq_mask_args = {} if "specaug_freq_mask_args" not in c else c["specaug_freq_mask_args"]
+        if c.get("specaug_freq_mask_args_nmasks", None):
+            self.specaug_freq_mask_args["num_masks"] = int(c.get("specaug_freq_mask_args_nmasks"))
+        self.specaug_time_mask = None if "specaug_time_mask" not in c else c["specaug_time_mask"]
+        self.specaug_time_mask_args = {} if "specaug_time_mask_args" not in c else c["specaug_time_mask_args"]
+        if c.get("specaug_time_mask_args_nmasks", None):
+            self.specaug_time_mask_args["num_masks"] = int(c.get("specaug_time_mask_args_nmasks"))
         weight_decay = c["weight_decay"]
         optimizer = c["optimizer"]
         scheduler = "ReduceLROnPlateau" if "scheduler" not in c else c["scheduler"]
@@ -204,9 +228,10 @@ class Trainable(tune.Trainable):
         resume_model = None if "resume_model" not in c else c["resume_model"]
         self.temporal_crop_length = None if "temporal_crop_length" not in c else c["temporal_crop_length"]
         self.smoke_test = False if "smoke_test" not in c else c["smoke_test"]
+        composed_transform = None if "composed_transform" not in c else c["composed_transform"]
 
-        data_set = data_set_cls(db_path, config.class_map, feature_folder=feature_folder)
-        data_set_eval = data_set_cls(db_path, config.class_map, feature_folder=feature_folder, mode="evaluate")
+        data_set = data_set_cls(db_path, config.class_map, feature_folder=feature_folder, transform=composed_transform)
+        data_set_eval = data_set_cls(db_path, config.class_map, feature_folder=feature_folder, mode="evaluate", transform=composed_transform)
 
         self.losses = []
         self.train_losses = []
@@ -266,10 +291,11 @@ class Trainable(tune.Trainable):
             self.optimizer.load_state_dict(cp["optimizer_state_dict"])
             self.best_acc = cp["acc"]
             self.previous_acc = cp["acc"]
+            self.train_losses = cp["train_losses"]
             self.current_ep = cp["ep"]
 
         if scheduler == "ReduceLROnPlateau":
-            self.scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(self.optimizer, factor=0.5, patience=10)
+            self.scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(self.optimizer, factor=0.7, patience=10, min_lr=5e-6)
         elif scheduler == "CosineAnnealingWarmRestarts":
             self.scheduler = torch.optim.lr_scheduler.CosineAnnealingWarmRestarts(self.optimizer,
                                                                                   T_0=3, T_mult=2, eta_min=self.lr*1e-4, last_epoch=-1)
@@ -294,6 +320,16 @@ class Trainable(tune.Trainable):
 
             if self.temporal_crop_length:
                 inputs = data_aug.temporal_crop(x, self.temporal_crop_length)
+            else:
+                inputs = x
+
+            if self.specaug_freq_mask:
+                for i, input in enumerate(inputs):
+                    inputs[i] = torch.FloatTensor(data_aug.freq_mask(input, **self.specaug_freq_mask_args)).to(device)
+
+            if self.specaug_time_mask:
+                for i, input in enumerate(inputs):
+                    inputs[i] = torch.FloatTensor(data_aug.time_mask(input, **self.specaug_time_mask_args)).to(device)
 
             inputs, targets_a, targets_b, lam = data_aug.mixup_data(inputs, targets,
                                                                     self.mixup_alpha,
@@ -308,8 +344,8 @@ class Trainable(tune.Trainable):
             # targets = torch.LongTensor(targets).to(device)
             # loss = model.get_loss(x, targets)
 
-            self.losses.append(loss.item())
-            total_loss += loss.item()
+            self.losses.append(loss.detach().item())
+            total_loss += loss.detach().item()
             loss.backward()
 
             if (batch + 1) % self.mini_batch_cnt == 0:
@@ -369,9 +405,11 @@ class Trainable(tune.Trainable):
         checkpoint_path = os.path.join(tmp_checkpoint_dir, "model.pth")
         torch.save({
             "ep": self.current_ep,
+            "acc": self.best_acc,
             "train_losses": self.train_losses,
             "model_state_dict": self.model.state_dict(),
             "optimizer_state_dict": self.optimizer.state_dict(),
+            "eval_raw": self.best_eval_raw,
         }, checkpoint_path)
 
         if self.previous_acc == self.best_acc:

@@ -355,4 +355,4 @@ def plot_loss_acc(train_losses_list, eval_losses_list, acc_list, save_fp):
 
 if __name__ == "__main__":
 
-    gen_report("../ray_results/2019_diff_net")
+    gen_report("../ray_results/2019_diff_net_report")

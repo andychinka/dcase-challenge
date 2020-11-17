@@ -95,10 +95,10 @@ class BasicBlock(nn.Module):
 #ref: model_resnet before the     ResidualPath = concatenate([ResidualPath1,ResidualPath2],axis=1)
 class ResNetModSub(nn.Module):
 
-    def __init__(self):
+    def __init__(self, in_channel=3):
         super(ResNetModSub, self).__init__()
 
-        self.res_path1 = ResBlock(in_channel=3,
+        self.res_path1 = ResBlock(in_channel=in_channel,
                           out_channel=24,
                           stride=(1,2),
                           learn_bn=True,
@@ -123,11 +123,11 @@ class ResNetModSub(nn.Module):
 
 class ResNetMod(nn.Module):
 
-    def __init__(self, out_kernel_size=(132,31)):
+    def __init__(self, out_kernel_size=(132,31), in_channel=3):
         super(ResNetMod, self).__init__()
 
-        self.high_resnet = ResNetModSub()
-        self.low_resnet = ResNetModSub()
+        self.high_resnet = ResNetModSub(in_channel=in_channel)
+        self.low_resnet = ResNetModSub(in_channel=in_channel)
 
         self.out_path1 = ResBlock(in_channel=192,
                                   out_channel=384,

@@ -14,7 +14,7 @@ from asc.dataset.task1b_dataset_2019 import Task1bDataSet2019
 exp = ray.tune.Experiment(
             run=Trainable,
             config={
-                "network": tune.grid_search(["vgg13_bn"]),
+                "network": tune.grid_search(["vgg11_bn"]),
                 "optimizer": tune.grid_search(["AdamW"]),
                 "lr": tune.grid_search([0.0001]),
                 # weight_decay == 0.1 is very bad
@@ -25,19 +25,20 @@ exp = ray.tune.Experiment(
                 "mini_batch_cnt": 1, # actually batch_size = 256/16 = 16
                 "mixup_alpha": tune.grid_search([0]),
                 "mixup_concat_ori": tune.grid_search([False]),
-                "feature_folder": tune.grid_search(["logmel_128_44k"]),
+                "feature_folder": tune.grid_search(["logmel_delta2_128_44k"]),
                 "db_path": os.getenv("HOME") + "/dcase/datasets/TAU-urban-acoustic-scenes-2019-mobile-development",
-                "model_cls": vgg.vgg13_bn,
+                "model_cls": vgg.vgg11_bn,
                 "model_args": {
                     "num_classes": 10,
+                    "in_channels": 3
                 },
                 "composed_transform": transforms.Compose([
-                    transform_utils.SelectChannel(0),
+                    # transform_utils.SelectChannel(0),
                     transform_utils.Normalizer()
                 ]),
                 "data_set_cls": Task1bDataSet2019,
                 "test_fn": None,  # no use here
-                "resume_model": None,
+                # "resume_model": os.getenv("HOME") + "/dcase/dev/ray_results/2019_diff_net_report/Trainable_0_batch_size=32,feature_folder=logmel_delta2_128_44k,lr=0.0001,mixup_alpha=0,mixup_concat_ori=False,network=vgg13_bn,opt_2020-09-28_11-57-24tndznmo5/checkpoint_170/model.pth",
             },
             name="2019_diff_net_report",
             num_samples=1,
@@ -47,7 +48,7 @@ exp = ray.tune.Experiment(
             keep_checkpoints_num=1,
             checkpoint_at_end=True,
             checkpoint_score_attr="acc",
-            resources_per_trial={"gpu": 0, "cpu": 64},
+            resources_per_trial={"gpu": 1},
         )
 
 if __name__ == "__main__":
@@ -68,9 +69,10 @@ if __name__ == "__main__":
         exit()
 
     ray.shutdown()
-    ray.init(local_mode=True, webui_host="0.0.0.0")
+    ray.init(local_mode=False, dashboard_host="0.0.0.0", num_cpus=2)
 
     analysis = tune.run(
         exp,
-        verbose=2,
+        resources_per_trial={"gpu": 1},
+        verbose=1,
     )

@@ -1,44 +1,52 @@
 import ray
 from ray import tune
+import os
+from torchvision import transforms
 
 from asc.train import Trainable
 from asc.train import TrainStopper
 
 from asc.model.resnet_mod import ResNetMod
 from asc.dataset.task1b_dataset_2019 import Task1bDataSet2019
+from asc.dataset import transform_utils
 
 exp = ray.tune.Experiment(
             run=Trainable,
             config={
                 "network": tune.grid_search(["resnet_mod"]),
+                # "remark": tune.grid_search(["3channel"]),
                 "optimizer": tune.grid_search(["AdamW"]),
                 "lr": tune.grid_search([0.0001]),
                 # weight_decay == 0.1 is very bad
-                "weight_decay": tune.grid_search([0.001]),
+                "weight_decay": tune.grid_search([0]),
                 "momentum": None,
-                "batch_size": tune.grid_search([256]),
-                "mini_batch_cnt": 16, # actually batch_size = 256/16 = 16
-                "mixup_alpha": tune.grid_search([0.5]),
-                "mixup_concat_ori": tune.grid_search([True]),
+                "batch_size": tune.grid_search([32]),
+                "mini_batch_cnt": 1, # actually batch_size = 256/16 = 16
+                "mixup_alpha": tune.grid_search([0]),
+                "mixup_concat_ori": tune.grid_search([False]),
                 "temporal_crop_length": tune.grid_search([400]),
                 "feature_folder": tune.grid_search(["logmel_delta2_128_44k"]),
-                "db_path": "/home/hw1-a07/dcase/datasets/TAU-urban-acoustic-scenes-2019-mobile-development",
+                "db_path": os.getenv("HOME") + "/dcase/datasets/TAU-urban-acoustic-scenes-2019-mobile-development",
                 "model_cls": ResNetMod,
                 "model_args": {
                     "out_kernel_size": (132,29)
                 },
+                # "composed_transform": transforms.Compose([
+                #     transform_utils.Normalizer()
+                # ]),
                 "data_set_cls": Task1bDataSet2019,
                 "test_fn": None,  # no use here
+                # "resume_model": os.getenv("HOME") + "/dcase/dev/ray_results/2019_diff_net_report/Trainable_0_batch_size=32,feature_folder=logmel_delta2_128_44k,lr=0.0001,mixup_alpha=0,mixup_concat_ori=False,network=resnet_mod,o_2020-10-07_23-14-22_109tcpy/checkpoint_111/model.pth",
             },
-            name="2019_diff_net",
+            name="2019_diff_net_report",
             num_samples=1,
-            local_dir="/home/hw1-a07/dcase/result/ray_results",
-            stop=TrainStopper(max_ep=200, stop_thres=50),
+            local_dir=os.getenv("HOME") + "/dcase/result/ray_results",
+            stop=TrainStopper(max_ep=200, stop_thres=200),
             checkpoint_freq=1,
             keep_checkpoints_num=1,
             checkpoint_at_end=True,
             checkpoint_score_attr="acc",
-            resources_per_trial={"gpu": 0, "cpu": 64},
+            resources_per_trial={"gpu": 1},
         )
 
 if __name__ == "__main__":
@@ -57,9 +65,10 @@ if __name__ == "__main__":
         exit()
 
     ray.shutdown()
-    ray.init(local_mode=True, webui_host="0.0.0.0")
+    ray.init(local_mode=False, dashboard_host="0.0.0.0", num_cpus=2) # num_cpus limited the cpu assign to ray, default will use all
 
     analysis = tune.run(
         exp,
-        verbose=2,
+        resources_per_trial={"gpu": 1},
+        verbose=1,
     )

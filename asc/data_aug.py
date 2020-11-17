@@ -1,5 +1,6 @@
 import numpy as np
 import torch
+import random
 
 def mixup_data(x, y, alpha=1.0, use_cuda=True, concat_ori=False):
     '''Returns mixed inputs, pairs of targets, and lambda'''
@@ -78,4 +79,42 @@ def mixup_and_temporal_crop(x, y, alpha=1.0, use_cuda=True, concat_ori=False, cr
         return cat_x, cat_y, lam
 
 
+def freq_mask(spec, F=30, num_masks=1, replace_with_zero=False):
+    cloned = np.copy(spec)
+    #     spec.clone()
+    num_mel_channels = cloned.shape[1]
 
+    for i in range(0, num_masks):
+        f = random.randrange(0, F)
+        f_zero = random.randrange(0, num_mel_channels - f)
+
+        # avoids randrange error if values are equal and range is empty
+        if (f_zero == f_zero + f): return cloned
+
+        mask_end = random.randrange(f_zero, f_zero + f)
+        if (replace_with_zero):
+            cloned[:, f_zero:mask_end] = 0
+        else:
+            cloned[:, f_zero:mask_end] = cloned.mean()
+
+    return cloned
+
+
+def time_mask(spec, T=40, num_masks=1, replace_with_zero=False):
+    cloned = np.copy(spec)
+    #     cloned = spec.clone()
+    len_spectro = cloned.shape[2]
+
+    for i in range(0, num_masks):
+        t = random.randrange(0, T)
+        t_zero = random.randrange(0, len_spectro - t)
+
+        # avoids randrange error if values are equal and range is empty
+        if (t_zero == t_zero + t): return cloned
+
+        mask_end = random.randrange(t_zero, t_zero + t)
+        if (replace_with_zero):
+            cloned[:, :, t_zero:mask_end] = 0
+        else:
+            cloned[:, :, t_zero:mask_end] = cloned.mean()
+    return cloned

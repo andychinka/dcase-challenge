@@ -3,12 +3,12 @@ import torch.nn as nn
 
 class Baseline(nn.Module):
 
-    def __init__(self, full_connected_in=128):
+    def __init__(self, full_connected_in=128, in_channels=1, maxpool=100):
         super(Baseline, self).__init__()
 
         self.cnn1 = nn.Sequential(
             nn.Conv2d(
-                in_channels=1,
+                in_channels=in_channels,
                 out_channels=32,
                 kernel_size=7,
                 padding=3
@@ -28,7 +28,7 @@ class Baseline(nn.Module):
             ), #(64, 8, 100)
             nn.BatchNorm2d(64),
             nn.ReLU(),
-            nn.MaxPool2d((4, 100)), #(64, 2, 1)
+            nn.MaxPool2d((4, maxpool)), #(64, 2, 1)
             nn.Dropout2d(0.3)
         )
 
@@ -46,6 +46,7 @@ class Baseline(nn.Module):
         out = self.cnn2(out)
         out = out.view(x.size(0), -1)
         out = self.hidden(out)
+        nn.MSELoss()
 
         return out
 

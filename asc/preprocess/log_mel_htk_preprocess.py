@@ -60,14 +60,14 @@ if __name__ == "__main__":
     import argparse
 
     parser = argparse.ArgumentParser()
-    parser.add_argument('-db_path', default="/home/hw1-a07/dcase/datasets/TAU-urban-acoustic-scenes-2019-mobile-development")
-    parser.add_argument("-feature_folder", default="logmel_delta2_128_44k")
+    parser.add_argument('-db_path', default="/home/MSAI/ch0001ka/dcase/datasets/TAU-urban-acoustic-scenes-2019-mobile-development")
+    parser.add_argument("-feature_folder", default="logmel_128_44k_htk")
 
     parser.add_argument("-n_mels", default=128)
     parser.add_argument("-n_fft", default=2048)
     parser.add_argument("-hop_length", default=int(2048/2))
     parser.add_argument("-sample_rate", default=44100)
-    parser.add_argument("-deltas_deltas", default=True)
+    parser.add_argument("-deltas_deltas", default=False)
 
     args = parser.parse_args()
 

@@ -5,7 +5,7 @@ import numpy as np
 
 class Task1bDataSet2019(Dataset):
 
-    def __init__(self, db_path:str, class_map:dict, feature_folder:str, mode:str="train", device: str = None):
+    def __init__(self, db_path:str, class_map:dict, feature_folder:str, mode:str="train", device: str = None, transform=None):
         #mode: train | test | eval
         #device：a | b | c
 
@@ -14,6 +14,7 @@ class Task1bDataSet2019(Dataset):
         self.class_map = class_map
         df = pd.read_csv("{}/evaluation_setup/fold1_{}.csv".format(db_path, mode), sep="\t")
         self.X_filepaths = df["filename"].str.replace("audio", feature_folder, n=1).str.replace(".wav", ".npy")
+        self.transform = transform
 
         #TODO: maybe refer to meta.csv
         if mode == "test":
@@ -50,6 +51,9 @@ class Task1bDataSet2019(Dataset):
         f = open("{}/{}".format(self.db_path, path), 'rb')
         feature = np.load(f)
         label = self.class_map[self.y_classnames[idx]]
+
+        if self.transform:
+            feature = self.transform(feature)
 
         return feature, label, city, device
 
