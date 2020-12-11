@@ -1,8 +1,10 @@
 import time
 import os
 from os import path
+from os import environ
 from shutil import copyfile
 import matplotlib.pyplot as plt
+
 
 from asc.preprocess.log_mel_htk_preprocess import LogMelHTKPreProcess
 from asc.model.resnet_mod import ResNetMod
@@ -13,16 +15,15 @@ import torch
 from flask_restful import Resource, fields, marshal_with, marshal, abort, reqparse, request
 from flask import current_app as app
 
+print("resmod_cp", environ.get("resmod_cp"))
+print("baseline_cp", environ.get("baseline_cp"))
 
-# checkpoint = "/home/MSAI/ch0001ka/dcase/result/ray_results/2019_diff_net_report/Trainable_0_batch_size=32,feature_folder=logmel_delta2_128_44k,lr=0.0001,mixup_alpha=0,mixup_concat_ori=False,network=resnet_mod,o_2020-10-30_08-25-43q64bwluv/checkpoint_190/model.pth"
-checkpoint = "/home/MSAI/ch0001ka/dcase/dev/result/ray_results/2019_diff_net_report/Trainable_0_batch_size=32,feature_folder=logmel_delta2_128_44k,lr=0.0001,mixup_alpha=0,mixup_concat_ori=False,network=resnet_mod,o_2020-10-30_00-16-48w2gcnbxu/best_model.pth"
-checkpoint = "/home/MSAI/ch0001ka/dcase/dev/result/ray_results/2019_diff_net_report/Trainable_0_batch_size=32,feature_folder=logmel_delta2_128_44k,lr=0.0001,mixup_alpha=0,mixup_concat_ori=False,network=resnet_mod,o_2020-10-29_16-59-47kyp3neck/best_model.pth"
-cp1 = torch.load(checkpoint)
+cp1 = torch.load(environ.get("resmod_cp"))
 model_args = {"out_kernel_size": (132,23)}
 model_resmod = ResNetMod(**model_args)
 model_resmod.load_state_dict(cp1["model_state_dict"])
 
-cp = torch.load("/home/MSAI/ch0001ka/dcase/result/ray_results/2019_diff_net_report/Trainable_0_batch_size=32,feature_folder=logmel_delta2_128_44k,lr=0.0001,mixup_alpha=0,mixup_concat_ori=False,network=baseline,opt_2020-09-27_14-47-40wg_qe9zs/best_model.pth")
+cp = torch.load(environ.get("baseline_cp"))
 model_args = {"maxpool": 84, "full_connected_in": 384, "in_channels": 3}
 model_baseline = Baseline(**model_args)
 model_baseline.load_state_dict(cp["model_state_dict"])
@@ -47,10 +48,7 @@ class AscTaskListResource(Resource):
         parser.add_argument('feature_code', type=str, required=True)
 
         args = parser.parse_args()
-
-        # TODO: to config or what
-        tasks_folder = "/tmp/asc_tasks"
-        print(request.json)
+        tasks_folder = os.path.abspath("demo/static/asc_tasks")
 
         asc_task_id = str(time.time())
 
@@ -65,7 +63,6 @@ class AscTaskListResource(Resource):
             audio_fp = os.getcwd() + "/" + args["preset_path"]
         else: # upload
             audio_fp = os.getcwd() + "/demo/static/upload/" + args["upload_path"]
-            # TODO: handle audio padding or crop
 
         copyfile(audio_fp, task_folder + "/input.wav")
 
