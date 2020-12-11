@@ -22,7 +22,7 @@ class LogMelHTKPreProcess(PreProcessBase):
         self.deltas_deltas = deltas_deltas
 
     def extract_feature(self, wave_fp):
-        stereo, fs = sound.read(wave_fp, stop=10 * self.sample_rate) #(441000)
+        stereo, fs = sound.read(wave_fp, frames=10 * self.sample_rate, fill_value=0) #(441000) #stop=10 * self.sample_rate,
         if len(stereo.shape)==1:
             stereo = np.expand_dims(stereo, 0) #(1, 441000)
 

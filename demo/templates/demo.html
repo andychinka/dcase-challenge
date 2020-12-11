@@ -1,0 +1,352 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>DCASE Demo</title>
+
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@4.5.3/dist/css/bootstrap.min.css" integrity="sha384-TX8t27EcRE3e/ihU7zmQxVncDAy5uIKz4rEkgIXeMed4M0jlfIDPvg6uqKI2xXr2" crossorigin="anonymous">
+    <script src="https://code.jquery.com/jquery-3.5.1.slim.min.js" integrity="sha384-DfXdz2htPH0lsSSs5nCTpuj/zy4C+OGpamoFVy38MVBnE+IbbVYUew+OrCXaRkfj" crossorigin="anonymous"></script>
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@4.5.3/dist/js/bootstrap.bundle.min.js" integrity="sha384-ho+j7jyWK8fNQe+A12Hb8AhRq26LrZ/JpcUGGOn+Y7RsweNrtN/tE3MoK7ZeZDyx" crossorigin="anonymous"></script>
+</head>
+<body>
+    <style>
+/*
+*
+* ==========================================
+* CUSTOM UTIL CLASSES
+* ==========================================
+*
+*/
+
+/* Timeline holder */
+ul.timeline {
+    list-style-type: none;
+    position: relative;
+    padding-left: 1.5rem;
+}
+
+ /* Timeline vertical line */
+ul.timeline:before {
+    content: ' ';
+    background: #fff;
+    display: inline-block;
+    position: absolute;
+    left: 16px;
+    width: 4px;
+    height: 100%;
+    z-index: 400;
+    border-radius: 1rem;
+}
+
+li.timeline-item {
+    margin: 20px 0;
+}
+
+/* Timeline item arrow */
+.timeline-arrow {
+    border-top: 0.5rem solid transparent;
+    border-right: 0.5rem solid #fff;
+    border-bottom: 0.5rem solid transparent;
+    display: block;
+    position: absolute;
+    left: 2rem;
+}
+
+/* Timeline item circle marker */
+li.timeline-item::before {
+    content: ' ';
+    background: #ddd;
+    display: inline-block;
+    position: absolute;
+    border-radius: 50%;
+    border: 3px solid #fff;
+    left: 11px;
+    width: 14px;
+    height: 14px;
+    z-index: 400;
+    box-shadow: 0 0 5px rgba(0, 0, 0, 0.2);
+}
+
+.timeline-item-done::before{
+    background: #30ff00 !important;
+}
+/*
+*
+* ==========================================
+* FOR DEMO PURPOSES
+* ==========================================
+*
+*/
+body {
+    background: #E8CBC0;
+    background: -webkit-linear-gradient(to right, #E8CBC0, #636FA4);
+    /*background: linear-gradient(to right, #E8CBC0, #636FA4);*/
+    background: linear-gradient(to right, #1d2124, #127fb3);
+    min-height: 100vh;
+}
+
+.text-gray {
+    color: #999;
+}
+
+.select-ul li{
+    cursor: pointer;
+}
+.select-ul li.selected, .select-ul li:hover{
+    background: #4B9DEA;
+    color: white;
+}
+
+.list-group-item{
+    text-align: center;
+}
+
+    </style>
+    <script>
+        $(document).ready(function(){
+
+            //--------------------Step 1------------------------
+
+            $('input[type=radio][name=audio_type]').change(function() {
+                if (this.value == 'preset') {
+                    $("#preset-audio-select").prop('disabled', false);
+                    $("#upload-audio-input").prop('disabled', "disabled");
+                }
+                else if (this.value == 'upload') {
+                    $("#upload-audio-input").prop('disabled', false);
+                    $("#preset-audio-select").prop('disabled', 'disabled');
+                } else {
+                    alert("unknown audio_type");
+                }
+            });
+
+            function show_audio(fp){
+                $("#playback-source").attr("src", fp);
+                let audio = document.getElementById('playback-audio');
+                audio.load();
+                $("#input-playback").show();
+
+                $("#timeline-item-1").addClass("timeline-item-done");
+            }
+
+            $("#preset-audio-select").change((e) => {
+                console.log("#preset-audio-select on Changed!");
+                show_audio("/static/" + $("#preset-audio-select").val());
+            });
+
+            $("#upload-audio-input").change((e) => {
+                console.log("#upload-audio-input on changed!");
+                let file = document.getElementById("upload-audio-input").files[0];
+
+                $("#upload-audio-label").html(file["name"]);
+
+                let formData = new FormData();
+                formData.append("file", file);
+                fetch('/upload', {method: "POST", body: formData})
+                    .then((resp) => {
+                        console.log("/upload resp", resp);
+                        return resp.json();
+                    })
+                    .then(function(data) {
+                        console.log("data", data);
+                        show_audio("/static/upload/" + data["filename"]);
+                    });
+            });
+
+            //--------------------Step 2------------------------
+
+            $(".model-item").click((e) => {
+                console.log(".model-item clicked", $(e.target).data('val'));
+                $("#model-select").attr("data-val", $(e.target).data('val'));
+                $(".model-item").removeClass("selected");
+                $(e.target).addClass("selected");
+
+                $("#timeline-item-2").addClass("timeline-item-done");
+            });
+
+            //--------------------Step 3------------------------
+            $("#submit-btn").click((e) => {
+                $("#submit-btn").hide();
+                $("#submit-loading-btn").show();
+
+                fetch('/asc-tasks', {
+                    method: 'post',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        type: $('input[type=radio][name=audio_type]:checked').val(),
+                        preset_path: $("#preset-audio-select").val(),
+                        upload_path: $("#upload-audio-label").html(),
+                        model_code: $("#model-select").attr("data-val"),
+                        feature_code: ""
+                    })
+                }).then(function(response) {
+                    console.log("response", response);
+                    return response.json();
+                }).then(function(data) {
+                    console.log("data", data);
+
+                    $("#result-feature").attr("src", "static/asc_tasks/" + data["asc_task_id"]  + "/features.png")
+
+                    $("#result-pred").text(data["output"]);
+                    $("#result-score").text(data["output_score"]);
+
+                    $("#result-predict-div li").removeClass("list-group-item-primary");
+                    $("#result-predict-div li").removeClass("list-group-item-light");
+                    $("#result-predict-div li").addClass("list-group-item-light");
+                    console.log("trg class: ", "#cls-" + data["output"])
+                    $("#cls-" + data["output"]).removeClass("list-group-item-light");
+                    $("#cls-" + data["output"]).addClass("list-group-item-primary");
+
+                    $("#submit-loading-btn").hide();
+                    $("#result-feature-div").show();
+                    $("#result-predict-div").show();
+
+                    $("#timeline-item-3").addClass("timeline-item-done");
+                });
+            })
+        });
+    </script>
+    <div class="jumbotron jumbotron-fluid">
+      <div class="container">
+        <h1 class="display-4">Acoustic Scene Classification DEMO</h1><h3>(DCASE 2019 Task 1B)</h3>
+          <p class="lead">
+              This is one of the challenges from <a href="http://dcase.community/challenge2019/task-acoustic-scene-classification" target="_blank">Detection and Classification of Acoustic Scenes and Event(DCASE) 2019</a>.
+              The DEMO shown a Multi-class classification with an audio input and a class from the 10 different scenes as the output .
+          </p>
+      </div>
+    </div>
+
+<!--    ref Timeline style: https://jsfiddle.net/bootstrapious/47s0u6yp/-->
+<div class="container">
+
+    <!-- For demo purpose -->
+        <div class="row">
+            <div class="col-lg-9 mx-auto">
+
+                <!-- Timeline -->
+                <ul class="timeline">
+                    <li class="timeline-item bg-white rounded ml-3 p-4 shadow" id="timeline-item-1">
+                        <div class="timeline-arrow"></div>
+                        <h2 class="h5 mb-0">Step 1: Input Audio</h2>
+                        <p class="text-small mt-2 font-weight-light">
+                            <div class="input-group mb-3">
+                                <div class="input-group-text">
+                                  <input type="radio" name="audio_type" value="preset" checked autocomplete="off">
+                                </div>
+                              <div class="input-group-prepend">
+                                <label class="input-group-text" for="preset-audio-select">Preset Audio</label>
+                              </div>
+                              <select class="custom-select" id="preset-audio-select" autocomplete="off">
+                                  <option selected>Choose...</option>
+                                  <option value="demo_assets/audio/airport-barcelona-0-0-a.wav">Airport Barcelona 0-0-A</option>
+                                  <option value="demo_assets/audio/bus-barcelona-16-657-a.wav">Bus Barcelona 16-657-A</option>
+                                  <option value="demo_assets/audio/bus-milan-190-4489-c.wav">Bus Milan 190-4489-C</option>
+                                  <option value="demo_assets/audio/metro-paris-52-1549-a.wav">Metro Paris 52-1549-A</option>
+                                  <option value="demo_assets/audio/metro_station-london-70-2048-a.wav">MetroStation London 70-2048-A</option>
+                                  <option value="demo_assets/audio/park-helsinki-242-7197-a.wav">Park Helsinki 242-7197-A</option>
+                                  <option value="demo_assets/audio/public_square-stockholm-121-3555-a.wav">PublicSquare Stockholm 121-3555-A</option>
+                                  <option value="demo_assets/audio/public_square-stockholm-121-3555-b.wav">PublicSquare Stockholm 121-3555-B</option>
+                                  <option value="demo_assets/audio/shopping_mall-lyon-196-4648-a.wav">ShoppingMall Lyon 196-4648-A</option>
+                              </select>
+                            </div>
+
+                            <div class="input-group mb-3">
+                                <div class="input-group-text">
+                                  <input type="radio" name="audio_type" value="upload" autocomplete="off">
+                                </div>
+                              <div class="input-group-prepend">
+                                  <span class="input-group-text">Upload</span>
+                              </div>
+                              <div class="custom-file">
+                                <input type="file" class="custom-file-input" id="upload-audio-input" accept=".wav" disabled autocomplete="off">
+                                <label class="custom-file-label" for="upload-audio-input" id="upload-audio-label">Choose file</label>
+                              </div>
+                            </div>
+
+                            <div id="input-playback" style="display: none">
+                                <audio id="playback-audio" controls style="width: 100%;">
+                                  <source id="playback-source" src="" type="audio/wav">
+                                  Your browser does not support the audio tag.
+                                </audio>
+                            </div>
+
+                        </p>
+                    </li>
+                    <li class="timeline-item bg-white rounded ml-3 p-4 shadow" id="timeline-item-2">
+                        <div class="timeline-arrow"></div>
+                        <h2 class="h5 mb-0">Step 2: Model Selection</h2>
+<!--                        <span class="small text-gray"><i class="fa fa-clock-o mr-1"></i>5 April, 2019</span>-->
+                        <p class="text-small mt-2 font-weight-light">
+                            <ul class="list-group list-group-horizontal select-ul" id="model-select" data-val="">
+                              <li class="model-item list-group-item" data-val="baseline">DCASE Baseline</li>
+                              <li class="model-item list-group-item" data-val="resmod">ResNet Modified</li>
+                            </ul>
+                        </p>
+                    </li>
+                    <li class="timeline-item bg-white rounded ml-3 p-4 shadow" id="timeline-item-3">
+                        <div class="timeline-arrow"></div>
+                        <h2 class="h5 mb-0">Step 3: Inference</h2>
+<!--                        <span class="small text-gray"><i class="fa fa-clock-o mr-1"></i>18 August, 2019</span>-->
+                        <p class="text-small mt-2 font-weight-light">
+                            <button type="button" class="btn btn-primary" style="width: 100%" id="submit-btn">Submit</button>
+                            <button class="btn btn-primary" type="button" style="width: 100%; display: none" id="submit-loading-btn" disabled>
+                              <span class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span>
+                              Loading...
+                            </button>
+                        </p>
+
+                        <div id="result-feature-div" style="display: none">
+                            <h6>Extracted Feature</h6>
+                            <img id="result-feature" src="" class="img-fluid" alt="Responsive image">
+                        </div>
+
+                        <div id="result-predict-div" style="display: none">
+                            <h6>Predicted Result</h6>
+                            <div>
+                                <span class="badge badge-info">Predicted: <span id="result-pred"></span></span>
+                                <span class="badge badge-info">Score: <span id="result-score"></span></span>
+                            </div>
+                            <div style="margin-top: 10px">
+<!--class_map = {-->
+<!--    'airport': 0,-->
+<!--    'bus': 1,-->
+<!--    'metro': 2,-->
+<!--    'metro_station': 3,-->
+<!--    'park': 4,-->
+<!--    'public_square': 5,-->
+<!--    'shopping_mall': 6,-->
+<!--    'street_pedestrian': 7,-->
+<!--    'street_traffic': 8,-->
+<!--    'tram': 9,-->
+<!--}-->
+                                <ul class="list-group list-group-horizontal-sm">
+                                    <li class="list-group-item flex-fill list-group-item-light" id="cls-airport">Airport</li>
+                                    <li class="list-group-item flex-fill list-group-item-light" id="cls-bus">Bus</li>
+                                    <li class="list-group-item flex-fill list-group-item-light" id="cls-metro">Metro</li>
+                                    <li class="list-group-item flex-fill list-group-item-light" id="cls-metro_station">Metro Station</li>
+                                    <li class="list-group-item flex-fill list-group-item-light" id="cls-park">Park</li>
+                                </ul>
+                                <ul class="list-group list-group-horizontal">
+                                    <li class="list-group-item flex-fill list-group-item-light" id="cls-public_square">Square</li>
+                                    <li class="list-group-item flex-fill list-group-item-light" id="cls-shopping_mall">Mall</li>
+                                    <li class="list-group-item flex-fill list-group-item-light" id="cls-street_pedestrian">Street Pedestrian</li>
+                                    <li class="list-group-item flex-fill list-group-item-light" id="cls-street_traffic">Street Traffic</li>
+                                    <li class="list-group-item flex-fill list-group-item-light" id="cls-tram">Tram</li>
+                                </ul>
+                            </div>
+                            <br/>
+                            <button type="button" class="btn btn-primary" style="width: 100%" onclick="location.reload();">Try Again</button>
+
+                        </div>
+                    </li>
+                </ul><!-- End -->
+
+            </div>
+        </div>
+    </div>
+
+
+</body>
+</html>

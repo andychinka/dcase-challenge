@@ -45,14 +45,100 @@ def inference(db_path, model_path, model_cls, model_args, output_csv_fp):
 
 if __name__ == "__main__":
     from asc.model.resnet_mod import ResNetMod
+    from asc.model import cnn
 
     # TODO: hanlding diff model, dataset
 
     db_path = "/home/hw1-a07/dcase/datasets/TAU-urban-acoustic-scenes-2019-mobile-leaderboard"
-    model_path = "/home/hw1-a07/dcase/result/ray_results/2019_diff_net/Trainable_0_batch_size=256,feature_folder=logmel_delta2_128_44k,lr=0.0001,mixup_alpha=0.5,mixup_concat_ori=True,network=resnet_mod_2020-07-14_13-47-567dphtomu/best_model.pth"
-    model_cls = ResNetMod
-    model_args = {
-        "out_kernel_size": (132,31)
-    }
-    output_csv_fp = "./predict.csv"
-    inference(db_path, model_path, model_cls, model_args, output_csv_fp)
+    models = [
+        # {
+        #     "model_path": "/home/hw1-a07/dcase/dev/ray_results/2019_diff_net/Trainable_0_batch_size=256,feature_folder=logmel_delta2_128_44k,lr=0.0001,mixup_alpha=0.5,mixup_concat_ori=True,network=cnn9avg_se_2020-07-22_09-01-11_cp1gzsx/best_model.pth",
+        #     "model_cls": cnn.Cnn_9layers_AvgPooling_SepFreq,
+        #     "model_args": {
+        #         "in_channel": 3,
+        #         "classes_num": 10,
+        #         "activation": 'logsoftmax',
+        #         "permute": True,
+        #     },
+        #     "output_csv_fp": "./predict_cnn_sepfreq_2020-07-22_09-01-11_cp1gzsx.csv"
+        # },
+        # {
+        #     "model_path": "/home/hw1-a07/dcase/dev/ray_results/2019_diff_net/Trainable_0_batch_size=256,feature_folder=logmel_delta2_128_44k,lr=0.0001,mixup_alpha=0.5,mixup_concat_ori=True,network=cnn9avg_am_2020-07-21_13-52-40p0oh9xl4/best_model.pth",
+        #     "model_cls": cnn.Cnn_9layers_AvgPooling,
+        #     "model_args": {
+        #         "in_channel": 3,
+        #         "classes_num": 10,
+        #         "activation": 'logsoftmax',
+        #         "permute": True,
+        #     },
+        #     "output_csv_fp": "./predict_cnn_2020-07-21_13-52-40p0oh9xl4.csv"
+        # },
+        # {
+        #     "model_path": "/home/hw1-a07/dcase/dev/ray_results/2019_diff_net/Trainable_0_batch_size=256,feature_folder=logmel_delta2_128_44k,lr=0.0001,mixup_alpha=0.5,mixup_concat_ori=True,network=cnn9avg_am_2020-07-16_09-24-35ef8wkl7m/best_model.pth",
+        #     "model_cls": cnn.Cnn_9layers_AvgPooling,
+        #     "model_args": {
+        #         "in_channel": 3,
+        #         "classes_num": 10,
+        #         "activation": 'logsoftmax',
+        #         "permute": True,
+        #     },
+        #     "output_csv_fp": "./predict_cnn_2020-07-16_09-24-35ef8wkl7m.csv"
+        # },
+        # {
+        #     "model_path": "/home/hw1-a07/dcase/dev/ray_results/2019_diff_net/Trainable_0_batch_size=256,feature_folder=logmel_delta2_128_44k,lr=0.0001,mixup_alpha=0.5,mixup_concat_ori=True,network=cnn9avg_am_2020-07-16_09-24-35ef8wkl7m/best_model.pth",
+        #     "model_cls": cnn.Cnn_9layers_AvgPooling,
+        #     "model_args": {
+        #         "in_channel": 3,
+        #         "classes_num": 10,
+        #         "activation": 'logsoftmax',
+        #         "permute": True,
+        #     },
+        #     "output_csv_fp": "./predict_cnn_2020-07-16_09-24-35ef8wkl7m.csv"
+        # },
+        # {
+        #     "model_path": "/home/hw1-a07/dcase/dev/ray_results/2019_diff_net/Trainable_0_batch_size=256,feature_folder=logmel_delta2_128_44k,lr=0.0001,mixup_alpha=0.5,mixup_concat_ori=True,network=resnet_mod_2020-07-14_13-47-567dphtomu/best_model.pth",
+        #     "model_cls": ResNetMod,
+        #     "model_args": {
+        #     },
+        #     "output_csv_fp": "./predict_resnet_2020-07-14_13-47-567dphtomu.csv"
+        # },
+        # {
+        #     "model_path": "/home/hw1-a07/dcase/dev/ray_results/2019_diff_net/Trainable_0_batch_size=256,feature_folder=logmel_delta2_128_44k,lr=0.1,mixup_alpha=0.5,mixup_concat_ori=True,momentum=0.9,network=_2020-08-01_15-48-547vpkemap/best_model.pth",
+        #     "model_cls": ResNetMod,
+        #     "model_args": {
+        #         "out_kernel_size": (132, 29)
+        #     },
+        #     "output_csv_fp": "./predict_resnet_2020-08-01_15-48-547vpkemap.csv"
+        # },
+        {
+            "model_path": "/home/hw1-a07/dcase/dev/ray_results/2019_diff_net/Trainable_0_batch_size=256,feature_folder=logmel_delta2_128_44k,lr=0.1,mixup_alpha=0.5,mixup_concat_ori=True,momentum=0.9,network=_2020-08-05_09-48-306tifm25u/best_model.pth",
+            "model_cls": ResNetMod,
+            "model_args": {
+                "out_kernel_size": (132, 29)
+            },
+            "output_csv_fp": "./predict_resnet_2020-08-05_09-48-306tifm25u.csv"
+        },
+        {
+            "model_path": "/home/hw1-a07/dcase/dev/ray_results/2019_diff_net/Trainable_0_batch_size=256,feature_folder=logmel_delta2_128_44k,lr=0.1,mixup_alpha=0.5,mixup_concat_ori=True,momentum=0.9,network=_2020-08-05_09-48-306tifm25u/checkpoint_300/model.pth",
+            "model_cls": ResNetMod,
+            "model_args": {
+                "out_kernel_size": (132, 29)
+            },
+            "output_csv_fp": "./predict_resnet_2020-08-05_09-48-306tifm25u_checkpoint300.csv"
+        }
+
+    ]
+    # model_path = "/home/hw1-a07/dcase/result/ray_results/2019_diff_net/Trainable_0_batch_size=256,feature_folder=logmel_delta2_128_44k,lr=0.0001,mixup_alpha=0.5,mixup_concat_ori=True,network=resnet_mod_2020-07-14_13-47-567dphtomu/best_model.pth"
+    # model_cls = ResNetMod
+    # model_args = {
+    #     "out_kernel_size": (132,31)
+    # }
+    # output_csv_fp = "./predict.csv"
+    for m in models:
+        model_path = m["model_path"]
+        model_cls = m["model_cls"]
+        model_args = m["model_args"]
+        output_csv_fp = m["output_csv_fp"]
+        inference(db_path, model_path, model_cls, model_args, output_csv_fp)
+        print(output_csv_fp + " Done.")
+    print("All Done.")

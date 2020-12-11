@@ -10,3 +10,10 @@ class_map = {
     'street_traffic': 8,
     'tram': 9,
 }
+
+
+def get_class_by_index(i):
+    for key, value in class_map.items():
+        if value == i:
+            return key
+    return None
